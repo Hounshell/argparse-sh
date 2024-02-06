@@ -1,0 +1,14 @@
+target/debug/argparse \
+  --bool is-sunny \
+  --bool is-rainy rainy r --name kinda----rainy \
+  --int --name degrees temperature temp t --repeated \
+  --int wind-speed windspeed wind w --default 0 \
+  --float rainfall rain --desc "How much rain is expected to fall" \
+  --choice units unit u --options imperial metric --default metric --map us imperial \
+  --string text --required \
+  --string source --secret --catch-all \
+  --autohelp \
+  --prefix "TEST_ARG_" \
+  --export \
+  --debug \
+  -- "$@"
