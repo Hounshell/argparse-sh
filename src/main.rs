@@ -26,8 +26,10 @@ mod arguments {
   use std::collections::VecDeque;
 
   trait Argument {
+    fn get_help_suggestions(&self) -> String;
     fn get_debug_info(&self) -> String;
     fn get_common(&self) -> &ArgumentCommon;
+    fn get_options(&self) -> Option<HashMap<String, OptionType>>;
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
 
     fn get_name(&self) -> &String {
@@ -135,7 +137,13 @@ mod arguments {
 
   struct ChoiceArgument {
     common: ArgumentCommon,
-    all_options: HashMap<String, String>,
+    all_options: HashMap<String, OptionType>,
+  }
+
+  #[derive(Clone)]
+  enum OptionType {
+    Mapping(String),
+    Actual(Option<String>),
   }
 
   trait OptionExt<T> {
@@ -219,8 +227,20 @@ mod arguments {
   }
 
   impl Argument for BooleanArgument {
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.common.all_flags.iter() {
+        result += format!("{}--{}", if result.is_empty() { "" } else { ", " }, flag).as_str();
+      }
+      return result;
+    }
+
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
+    }
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -319,8 +339,24 @@ mod arguments {
   }
 
   impl Argument for IntegerArgument {
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.common.all_flags.iter() {
+        result += format!(
+            "{}--{} <{}>",
+            if result.is_empty() { "" } else { ", " },
+            flag,
+            self.common.name.to_lowercase()).as_str();
+      }
+      return result;
+    }
+
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
+    }
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -426,8 +462,24 @@ mod arguments {
   }
 
   impl Argument for FloatArgument {
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.common.all_flags.iter() {
+        result += format!(
+            "{}--{} <{}>",
+            if result.is_empty() { "" } else { ", " },
+            flag,
+            self.common.name.to_lowercase()).as_str();
+      }
+      return result;
+    }
+
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
+    }
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -533,8 +585,24 @@ mod arguments {
   }
 
   impl Argument for StringArgument {
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.common.all_flags.iter() {
+        result += format!(
+            "{}--{} <{}>",
+            if result.is_empty() { "" } else { ", " },
+            flag,
+            self.common.name.to_lowercase()).as_str();
+      }
+      return result;
+    }
+
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
+    }
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -557,7 +625,6 @@ mod arguments {
       let mut name = None;
       let mut collecting_flags = true;
       let mut all_flags = Vec::new();
-      let mut collecting_options = false;
       let mut all_options = HashMap::new();
       let mut default = None;
       let mut description = None;
@@ -612,11 +679,22 @@ mod arguments {
             let to = args.pop_front()
                 .unwrap_or_error(String::from("pair of values ({from} {to}) must be provided after --map"))
                 .to_string();
-            all_options.insert(from, to);
+            all_options.insert(from, OptionType::Mapping(to));
           }
-          Some("--options") => {
+          Some("--option") => {
             collecting_flags = false;
-            collecting_options = true;
+            let from = args.pop_front()
+                .unwrap_or_error(String::from("option must be provided after --option"))
+                .to_string();
+            let description = args.pop_front();
+            if description.is_none() {
+              all_options.insert(from, OptionType::Actual(None));
+            } else if description.clone().unwrap().starts_with("-") {
+              args.push_front(description.unwrap());
+              all_options.insert(from, OptionType::Actual(None));
+            } else {
+              all_options.insert(from, OptionType::Actual(Some(description.unwrap())));
+            }
           }
           Some(other) => {
             if collecting_flags && !other.starts_with("-") {
@@ -624,8 +702,6 @@ mod arguments {
               if name.is_none() {
                 name = Some(other.to_string());
               }
-            } else if collecting_options && !other.starts_with("-") {
-              all_options.insert(other.to_string(), other.to_string());
             } else {
               args.push_front(other.to_string());
               break;
@@ -651,15 +727,31 @@ mod arguments {
   }
 
   impl Argument for ChoiceArgument {
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.common.all_flags.iter() {
+        result += format!(
+            "{}--{} <{}>",
+            if result.is_empty() { "" } else { ", " },
+            flag,
+            self.common.name.to_lowercase()).as_str();
+      }
+      return result;
+    }
+
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
+    }
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      Some(self.all_options.clone())
     }
 
     fn get_debug_info(&self) -> String {
       let mut description = format!("type: Choice; {}", self.common.get_debug_info());
       let mut first = true;
       description.push_str("; options: ");
-      for (from, to) in &self.all_options {
+      for (from, info) in &self.all_options {
         if first {
           first = false;
         } else {
@@ -668,9 +760,12 @@ mod arguments {
 
         description.push_str(from);
 
-        if from != to {
-          description.push_str(" -> ");
-          description.push_str(to);
+        match info {
+          OptionType::Mapping(to) => {
+            description.push_str(" -> ");
+            description.push_str(to);
+          },
+          _ => {}
         }
       }
       return description;
@@ -684,9 +779,11 @@ mod arguments {
               .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))
       };
 
-      Some(self.all_options.get(&value)
-            .unwrap_or_error(format!("Value \"{value}\" not recognized for argument {}", self.get_name()))
-            .to_string())
+      match self.all_options.get(&value)
+            .unwrap_or_error(format!("Value \"{value}\" not recognized for argument {}", self.get_name())) {
+        OptionType::Mapping(actual) => Some(actual.to_string()),
+        _ => Some(value),
+      }
     }
   }
 
@@ -696,6 +793,8 @@ mod arguments {
     auto_help: bool,
     export: bool,
     debug: bool,
+    program_name: Option<String>,
+    program_description: Option<String>,
     remaining_args: Vec<String>,
   }
 
@@ -708,6 +807,8 @@ mod arguments {
     let mut auto_help = false;
     let mut export = false;
     let mut debug = false;
+    let mut program_name = None;
+    let mut program_description = None;
 
     loop {
       match args.pop_front().as_deref() {
@@ -732,6 +833,16 @@ mod arguments {
         Some("--autohelp") | Some("--auto-help") => {
           auto_help = true;
         }
+        Some("--program-name") => {
+          program_name = Some(args.pop_front()
+              .unwrap_or_error(String::from("program name prefix must be provided after --program-name"))
+              .to_string());
+        }
+        Some("--program-description") => {
+          program_description = Some(args.pop_front()
+              .unwrap_or_error(String::from("program description prefix must be provided after --program-description"))
+              .to_string());
+        }
         Some("--export") => {
           export = true;
         }
@@ -744,7 +855,7 @@ mod arguments {
           debug = true;
         }
         Some(other) => {
-          println!("Unrecognized option: {other}");
+          error(format!("Unrecognized option: {other}"));
         }
       };
     }
@@ -755,28 +866,30 @@ mod arguments {
       auto_help: auto_help,
       export: export,
       debug: debug,
+      program_name: program_name,
+      program_description: program_description,
       remaining_args: Vec::from(args),
     }
   }
 
   fn debug_setup(settings: &Settings) {
-    if settings.debug {
-      println!("echo \"ArgParse debugging enabled with --debug flag\"");
-      println!("echo \"Arguments {} exported to child processes\"", if settings.export { "are" } else { "are not" });
+    output_debug(settings, "ArgParse debugging enabled with --debug flag");
+    output_debug(settings, format!(
+        "Arguments {} exported to child processes", 
+        if settings.export { "are" } else { "are not" }));
 
-      if settings.prefix.is_some() {
-        println!("echo \"All variables will be prefixed with '{}'\"", settings.prefix.clone().unwrap());
-      }
+    if settings.prefix.is_some() {
+      output_debug(settings, format!("All variables will be prefixed with '{}'", settings.prefix.clone().unwrap()));
+    }
 
-      if settings.auto_help {
-        println!("echo \"Help text will be printed if '--help' is found in arguments\"");
-      }
+    if settings.auto_help {
+      output_debug(settings, "Help text will be printed if '--help' is found in arguments");
+    }
 
-      println!("echo \"\"");
+    output_debug(settings, "");
 
-      for arg in settings.arguments.iter() {
-        println!("echo \"Definition - {}\"", arg.get_debug_info());
-      }
+    for arg in settings.arguments.iter() {
+      output_debug(settings, format!("Definition - {}", arg.get_debug_info()));
     }
   }
 
@@ -794,11 +907,9 @@ mod arguments {
   fn parse_argument_values(settings: &Settings) -> HashMap<String, Vec<String>> {
     let mut args = VecDeque::from(settings.remaining_args.clone());
 
-    if settings.debug {
-      println!("echo \"\"");
-      println!("echo \"Parsing argument values\"");
-      println!("echo \"\"");
-    }
+    output_debug(settings, "");
+    output_debug(settings, "Parsing argument values");
+    output_debug(settings, "");
 
     let mut result = HashMap::new();
 
@@ -824,9 +935,7 @@ mod arguments {
         None => {}
         Some(value) => {
           let name = argument.get_name().to_string();
-          if settings.debug {
-            println!("echo \"Parsed argument {name} = {value}\"");
-          }
+          output_debug(settings, format!("Parsed argument {name} = '{value}'"));
           return (name, value);
         }
       }
@@ -837,9 +946,7 @@ mod arguments {
   }
 
   fn validate_argument_values(settings: &Settings, arg_values: &HashMap<String, Vec<String>>) {
-    if settings.debug {
-      println!("echo \"\"");
-    }
+    output_debug(settings, "");
 
     for argument in settings.arguments.iter() {
       let values = arg_values.get(argument.get_name());
@@ -855,31 +962,111 @@ mod arguments {
   }
 
   fn output_argument_settings(settings: &Settings, arg_values: &HashMap<String, Vec<String>>) {
-    let prefix = format!("{}{}", if settings.export { "export " } else { "" }, settings.prefix.clone().unwrap_or(String::from("")));
-
     for argument in settings.arguments.iter() {
       let values = arg_values.get(argument.get_name());
       if values.is_some() {
         let values = values.unwrap();
 
         if argument.is_repeated() {
-          println!("{prefix}{}=\"{}\"", argument.get_name(), values.len());
+          output_argument(settings, argument.get_name(), values.len());
           for i in 0..values.len() {
-            println!("{prefix}{}_{}=\"{}\"", argument.get_name(), i, values.get(i).unwrap());
+            output_argument(settings, &format!("{}_{}", argument.get_name(), i), values.get(i).unwrap());
           }
-
         } else {
-          println!("{prefix}{}=\"{}\"", argument.get_name(), values.get(0).unwrap());
+          output_argument(settings, argument.get_name(), values.get(0).unwrap());
         }
       } else if argument.get_common().default.is_some() {
-        println!("{prefix}{}=\"{}\"", argument.get_name(), argument.get_common().default.clone().unwrap());
+        output_argument(settings, argument.get_name(), argument.get_common().default.clone().unwrap());
       }
     }
 
-    if settings.debug {
-      println!("echo \"\"");
-      println!("echo \"ArgParse completed successfully\"");
+    output_debug(settings, "");
+    output_debug(settings, "ArgParse completed successfully");
+  }
+
+  fn print_help_text(settings: &Settings) {
+    println!("(");
+    println!("if [ -t 1 ]; then");
+    println!("  bold=\"$(tput bold)\"");
+    println!("  unbold=\"$(tput sgr0)\"");
+    println!("else");
+    println!("  bold=\"\"");
+    println!("  unbold=\"\"");
+    println!("fi");
+    println!("HELP_TEXT=\"");
+
+    if settings.program_name.is_some() {
+      println!("${{bold}}NAME${{unbold}}");
+      println!("       {}", settings.program_name.clone().unwrap());
+      println!("");
     }
+
+    if settings.program_description.is_some() {
+      println!("${{bold}}DESCRIPTION${{unbold}}");
+      println!("       {}", settings.program_description.clone().unwrap());
+      println!("");
+    }
+
+    if !settings.arguments.is_empty() {
+      println!("${{bold}}OPTIONS${{unbold}}");
+
+      for arg in settings.arguments.iter() {
+        if !arg.get_common().secret {
+          println!("       {}", arg.get_help_suggestions());
+          if arg.get_common().description.is_some() {
+            println!("           {}", arg.get_common().description.clone().unwrap());
+          } else {
+            println!("           No details available.");
+          }
+          let options = arg.get_options();
+          if options.is_some() {
+            println!("");
+            println!("           The possible options are:");
+            for (option, info) in options.unwrap() {
+              println!("");
+              match info {
+                OptionType::Actual(description) => {
+                  println!("           •   {} - {}", option, description.unwrap_or(String::from("No details available.")));
+                },
+                OptionType::Mapping(actual) => {
+                  println!("           •   {} - Identical to '{}'", option, actual);
+                },
+              }
+            }
+          }
+          if arg.get_common().default.is_some() {
+            println!("");
+            println!("           When this option is not provided it will default to '{}'.", arg.get_common().default.clone().unwrap());
+          }
+          println!("");
+        }
+      }
+    }
+
+    println!("\"");
+    println!("echo \"$HELP_TEXT\"");
+    // println!("echo \"$HELP_TEXT\" | less -R");
+    println!(")");
+  }
+
+  fn echo<S: AsRef<str>>(text: S) {
+    println!("echo \"{}\"", text.as_ref());
+  }
+
+  fn output_debug<S: AsRef<str>>(settings: &Settings, text: S) {
+    if settings.debug {
+      echo(format!("[ArgParse] {}", text.as_ref()));
+    }
+  }
+
+  fn output_argument<V: std::fmt::Display>(settings: &Settings, name: &String, value: V) {
+    output_debug(settings, format!(
+        "Setting {}{name} = \\\"{value}\\\"", 
+        settings.prefix.clone().unwrap_or(String::from(""))));
+
+    println!("{}{}{name}=\"{value}\"",
+        if settings.export { "export " } else { "" },
+        settings.prefix.clone().unwrap_or(String::from("")));
   }
 
   pub fn handle_all_arguments(args: Vec<String>) {
@@ -892,11 +1079,13 @@ mod arguments {
 
     validate_argument_values(&settings, &values);
     output_argument_settings(&settings, &values);
+
+    print_help_text(&settings);
   }
 
-  fn error(message: String) {
+  fn error<S: AsRef<str>>(message: S) {
     println!("echo \"\"");
-    println!("echo \"!!! ArgParse Error: {message} !!!\"");
+    println!("echo \"!!! ArgParse Error: {} !!!\"", message.as_ref());
     println!("echo \"\"");
     std::process::exit(1);
   }
