@@ -871,6 +871,8 @@ mod arguments {
         } else {
           println!("{prefix}{}=\"{}\"", argument.get_name(), values.get(0).unwrap());
         }
+      } else if argument.get_common().default.is_some() {
+        println!("{prefix}{}=\"{}\"", argument.get_name(), argument.get_common().default.clone().unwrap());
       }
     }
 
