@@ -25,7 +25,7 @@ mod arguments {
   use std::collections::HashMap;
   use std::collections::VecDeque;
 
-  pub trait Argument {
+  trait Argument {
     fn get_debug_info(&self) -> String;
     fn get_common(&self) -> &ArgumentCommon;
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
@@ -88,9 +88,33 @@ mod arguments {
       return description;
     }
 
-    fn matches_flag(&self, flag: &String) -> bool {
-      flag.starts_with("--") && self.all_flags.contains(&flag[2..].to_string())
+    fn check_flag_match(&self, flag: &String) -> MatchResult {
+      if flag.starts_with("--") {
+        let flag = &flag[2..];
+
+        match &flag.to_string().split_once("=") {
+          None =>
+            if self.all_flags.contains(&flag.to_string()) {
+              return MatchResult::MatchWithoutValue;
+            },
+
+          Some((name, value)) =>
+            if self.all_flags.contains(&name.to_string()) {
+              return MatchResult::MatchWithValue(value.to_string());
+            }
+        }
+      } else if self.catch_all {
+        return MatchResult::MatchWithValue(flag.to_string());
+      }
+
+      return MatchResult::NoMatch;
     }
+  }
+
+  enum MatchResult {
+    MatchWithValue(String),
+    MatchWithoutValue,
+    NoMatch,
   }
 
   struct BooleanArgument {
@@ -194,7 +218,7 @@ mod arguments {
     }
   }
 
-  impl Argument for BooleanArgument { 
+  impl Argument for BooleanArgument {
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
     }
@@ -204,10 +228,13 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, _other_args: &mut VecDeque<String>) -> Option<String> {
-      if self.common.matches_flag(arg) {
-        Some(String::from("true"))
-      } else {
-        None
+      match self.common.check_flag_match(arg) {
+        MatchResult::NoMatch => None,
+        MatchResult::MatchWithoutValue => Some(String::from("true")),
+        MatchResult::MatchWithValue(value) => Some(value
+            .parse::<bool>()
+            .unwrap_or_error(format!("Non-boolean value \"{value}\" provided for argument {}", self.common.name))
+            .to_string()),
       }
     }
   }
@@ -254,13 +281,13 @@ mod arguments {
             collecting_flags = false;
             default = Some(args.pop_front()
                 .unwrap_or_error(String::from("default value must be provided after --default"))
-                .to_string()); 
+                .to_string());
           }
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
                 .unwrap_or_error(String::from("description must be provided after --desc or --description"))
-                .to_string()); 
+                .to_string());
           }
           Some(other) => {
             if collecting_flags && !other.starts_with("-") {
@@ -301,26 +328,21 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      fn parse(arg: &IntegerArgument, value: &String) -> Option<String> {
-        let name = arg.get_name();
-        Some(value
+      fn parse(arg: &IntegerArgument, value: &String) -> String {
+        value
             .parse::<i64>()
-            .unwrap_or_error(format!("Non-integer value \"{value}\" provided for argument {name}"))
-            .to_string())
+            .unwrap_or_error(format!("Non-integer value \"{value}\" provided for argument {}", arg.get_name()))
+            .to_string()
       }
 
-      if self.common.matches_flag(arg) {
-        parse(
-            self, 
+      match self.common.check_flag_match(arg) {
+        MatchResult::NoMatch => None,
+        MatchResult::MatchWithValue(value) => Some(parse(self, &value)),
+        MatchResult::MatchWithoutValue => Some(parse(
+            self,
             &other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name())))
-
-      } else if self.common.catch_all && !arg.starts_with("--") {
-        parse(self, arg)
-
-      } else {
-        None
-      }   
+              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
+      }
     }
   }
 
@@ -413,25 +435,20 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      fn parse(arg: &FloatArgument, value: &String) -> Option<String> {
-        let name = arg.get_name();
-        Some(value
+      fn parse(arg: &FloatArgument, value: &String) -> String {
+        value
             .parse::<f64>()
-            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {name}"))
-            .to_string())
+            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {}", arg.get_name()))
+            .to_string()
       }
 
-      if self.common.matches_flag(arg) {
-        parse(
+      match self.common.check_flag_match(arg) {
+        MatchResult::NoMatch => None,
+        MatchResult::MatchWithValue(value) => Some(parse(self, &value)),
+        MatchResult::MatchWithoutValue => Some(parse(
             self,
             &other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name())))
-
-      } else if self.common.catch_all && !arg.starts_with("--") {
-        parse(self, arg)
-
-      } else {
-        None
+              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
       }
     }
   }
@@ -525,15 +542,13 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      if self.common.matches_flag(arg) {
-        Some(other_args.pop_front()
-            .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))
-            .to_string())
-      } else if self.common.catch_all && !arg.starts_with("--") {
-        Some(arg.to_string())
-      } else {
-        None
-      }   
+      match self.common.check_flag_match(arg) {
+        MatchResult::NoMatch => None,
+        MatchResult::MatchWithValue(value) => Some(value),
+        MatchResult::MatchWithoutValue => Some(
+            other_args.pop_front()
+              .unwrap_or_error(format!("No value provided for argument {}", self.get_name())))
+      }
     }
   }
 
@@ -662,21 +677,16 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      if self.common.matches_flag(arg) {
-        let value = &other_args.pop_front()
-            .unwrap_or_error(format!("No value provided for argument {}", self.get_name()));
-        Some(self.all_options.get(value)
-            .unwrap_or_error(format!("Value {value} not recognized for argument {}", self.get_name()))
-            .to_string())
+      let value = match self.common.check_flag_match(arg) {
+        MatchResult::NoMatch => return None,
+        MatchResult::MatchWithValue(value) => value,
+        MatchResult::MatchWithoutValue => other_args.pop_front()
+              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))
+      };
 
-      } else if self.common.catch_all && arg.starts_with("--") {
-        Some(self.all_options.get(arg)
-            .unwrap_or_error(format!("Value {arg} not recognized for argument {}", self.get_name()))
+      Some(self.all_options.get(&value)
+            .unwrap_or_error(format!("Value \"{value}\" not recognized for argument {}", self.get_name()))
             .to_string())
-
-      } else {
-        None
-      }   
     }
   }
 
@@ -792,31 +802,38 @@ mod arguments {
 
     let mut result = HashMap::new();
 
-    'next_arg: while !args.is_empty() {
+    while !args.is_empty() {
       let arg = args.pop_front().unwrap();
+      let (name, value) = parse_argument_value(&settings, &arg, &mut args);
 
-      for argument in settings.arguments.iter() {
-        match argument.consume(&arg, &mut args) {
-          None => {}
-          Some(value) => {
-            let name = argument.get_name().to_string();
-            if settings.debug {
-              println!("echo \"Parsed argument {name} = {value}\"");
-            }
-            let mut old_values = result.remove(&name).unwrap_or(Vec::new());
-            let mut new_values = Vec::new();
-            new_values.append(&mut old_values);
-            new_values.push(value);
-            result.insert(name, new_values);
-            continue 'next_arg;
-          }
-        }
-      }
-
-      error(format!("Extra argument \"{arg}\" passed and no catch-all argument found"));
+      let mut all_values = result.remove(&name).unwrap_or(Vec::new());
+      all_values.push(value);
+      result.insert(name, all_values);
     }
 
     return result;
+  }
+
+  fn parse_argument_value(
+      settings: &Settings,
+      first: &String,
+      rest: &mut VecDeque<String>,
+  ) -> (String, String) {
+    for argument in settings.arguments.iter() {
+      match argument.consume(first, rest) {
+        None => {}
+        Some(value) => {
+          let name = argument.get_name().to_string();
+          if settings.debug {
+            println!("echo \"Parsed argument {name} = {value}\"");
+          }
+          return (name, value);
+        }
+      }
+    }
+
+    error(format!("Extra argument \"{first}\" passed and no catch-all argument found"));
+    panic!("");
   }
 
   fn validate_argument_values(settings: &Settings, arg_values: &HashMap<String, Vec<String>>) {
@@ -888,6 +905,6 @@ mod arguments {
         .replace_all(name.as_str(), "_")
         .to_string()
         .to_uppercase()
-  } 
+  }
 }
 
