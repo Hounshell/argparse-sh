@@ -26,11 +26,48 @@ mod arguments {
   use std::collections::VecDeque;
 
   trait Argument {
-    fn get_help_suggestions(&self) -> String;
     fn get_debug_info(&self) -> String;
     fn get_common(&self) -> &ArgumentCommon;
-    fn get_options(&self) -> Option<HashMap<String, OptionType>>;
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
+
+    fn consume_with_parser(
+        &self, 
+        arg: &String, 
+        other_args: &mut VecDeque<String>, 
+        parse: fn(&String, &String) -> String) -> Option<String> {
+      fn parse2(arg: &FloatArgument, value: &String) -> String {
+        value
+            .parse::<f64>()
+            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {}", arg.get_name()))
+            .to_string()
+      }
+
+      match self.get_common().check_flag_match(arg) {
+        MatchResult::NoMatch => None,
+        MatchResult::MatchWithValue(value) => Some(parse(self.get_name(), &value)),
+        MatchResult::MatchWithoutValue => Some(parse(
+            self.get_name(),
+            &other_args.pop_front()
+              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
+      }
+    }
+
+
+    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
+      None
+    }
+
+    fn get_help_suggestions(&self) -> String {
+      let mut result = String::from("");
+      for flag in self.get_common().all_flags.iter() {
+        result += format!(
+            "{}--{} <{}>",
+            if result.is_empty() { "" } else { ", " },
+            flag,
+            self.get_common().name.to_lowercase()).as_str();
+      }
+      return result;
+    }
 
     fn get_name(&self) -> &String {
       &self.get_common().name
@@ -239,10 +276,6 @@ mod arguments {
       &self.common
     }
 
-    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
-      None
-    }
-
     fn get_debug_info(&self) -> String {
       return format!("type: Boolean; {}", self.common.get_debug_info());
     }
@@ -339,24 +372,8 @@ mod arguments {
   }
 
   impl Argument for IntegerArgument {
-    fn get_help_suggestions(&self) -> String {
-      let mut result = String::from("");
-      for flag in self.common.all_flags.iter() {
-        result += format!(
-            "{}--{} <{}>",
-            if result.is_empty() { "" } else { ", " },
-            flag,
-            self.common.name.to_lowercase()).as_str();
-      }
-      return result;
-    }
-
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
-    }
-
-    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
-      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -364,21 +381,13 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      fn parse(arg: &IntegerArgument, value: &String) -> String {
-        value
+      self.consume_with_parser(
+        arg, 
+        other_args, 
+        |name, value: &String| value
             .parse::<i64>()
-            .unwrap_or_error(format!("Non-integer value \"{value}\" provided for argument {}", arg.get_name()))
-            .to_string()
-      }
-
-      match self.common.check_flag_match(arg) {
-        MatchResult::NoMatch => None,
-        MatchResult::MatchWithValue(value) => Some(parse(self, &value)),
-        MatchResult::MatchWithoutValue => Some(parse(
-            self,
-            &other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
-      }
+            .unwrap_or_error(format!("Non-integer value \"{value}\" provided for argument {name}"))
+            .to_string())
     }
   }
 
@@ -462,24 +471,8 @@ mod arguments {
   }
 
   impl Argument for FloatArgument {
-    fn get_help_suggestions(&self) -> String {
-      let mut result = String::from("");
-      for flag in self.common.all_flags.iter() {
-        result += format!(
-            "{}--{} <{}>",
-            if result.is_empty() { "" } else { ", " },
-            flag,
-            self.common.name.to_lowercase()).as_str();
-      }
-      return result;
-    }
-
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
-    }
-
-    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
-      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -487,21 +480,13 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      fn parse(arg: &FloatArgument, value: &String) -> String {
-        value
+      self.consume_with_parser(
+        arg, 
+        other_args, 
+        |name, value: &String| value
             .parse::<f64>()
-            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {}", arg.get_name()))
-            .to_string()
-      }
-
-      match self.common.check_flag_match(arg) {
-        MatchResult::NoMatch => None,
-        MatchResult::MatchWithValue(value) => Some(parse(self, &value)),
-        MatchResult::MatchWithoutValue => Some(parse(
-            self,
-            &other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
-      }
+            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {name}"))
+            .to_string())
     }
   }
 
@@ -585,24 +570,8 @@ mod arguments {
   }
 
   impl Argument for StringArgument {
-    fn get_help_suggestions(&self) -> String {
-      let mut result = String::from("");
-      for flag in self.common.all_flags.iter() {
-        result += format!(
-            "{}--{} <{}>",
-            if result.is_empty() { "" } else { ", " },
-            flag,
-            self.common.name.to_lowercase()).as_str();
-      }
-      return result;
-    }
-
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
-    }
-
-    fn get_options(&self) -> Option<HashMap<String, OptionType>> {
-      None
     }
 
     fn get_debug_info(&self) -> String {
@@ -610,13 +579,10 @@ mod arguments {
     }
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
-      match self.common.check_flag_match(arg) {
-        MatchResult::NoMatch => None,
-        MatchResult::MatchWithValue(value) => Some(value),
-        MatchResult::MatchWithoutValue => Some(
-            other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name())))
-      }
+      self.consume_with_parser(
+        arg, 
+        other_args, 
+        |name, value: &String| value.to_string())
     }
   }
 
@@ -727,18 +693,6 @@ mod arguments {
   }
 
   impl Argument for ChoiceArgument {
-    fn get_help_suggestions(&self) -> String {
-      let mut result = String::from("");
-      for flag in self.common.all_flags.iter() {
-        result += format!(
-            "{}--{} <{}>",
-            if result.is_empty() { "" } else { ", " },
-            flag,
-            self.common.name.to_lowercase()).as_str();
-      }
-      return result;
-    }
-
     fn get_common(&self) -> &ArgumentCommon {
       &self.common
     }
