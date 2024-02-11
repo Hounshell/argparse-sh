@@ -4,7 +4,7 @@ eval "$(target/debug/argparse \
   --int --name degrees temperature temp t --repeated \
   --int wind-speed windspeed wind w --default 0 \
   --float rainfall rain --desc "How much rain is expected to fall." \
-  --choice units unit u --option imperial "ft, mi, °F" --option metric --default metric --map us imperial \
+  --choice units unit u --option imperial "ft, mi, °F" --map us imperial --option metric --default metric \
   --string text --required \
   --string source --secret --catch-all \
   --autohelp \

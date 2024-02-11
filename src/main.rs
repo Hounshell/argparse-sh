@@ -46,7 +46,7 @@ mod arguments {
     }
 
     fn get_help_details(&self) -> Vec<String> {
-      vec![self.get_common().description.clone().unwrap_or(String::from("No details available."))]
+      vec![self.get_description().clone().unwrap_or(String::from("No details available."))]
     }
 
     fn get_help_flags(&self) -> Vec<String> {
@@ -58,10 +58,10 @@ mod arguments {
     }
 
     fn get_help_default(&self) -> Option<String> {
-      if self.get_common().default.is_some() {
+      if self.get_default().is_some() {
         Some(format!(
             "When this option is not provided it will default to '{}'.", 
-            self.get_common().default.clone().unwrap()))
+            self.get_default().clone().unwrap()))
       } else {
         None
       }
@@ -184,7 +184,7 @@ mod arguments {
 
   struct ChoiceArgument {
     common: ArgumentCommon,
-    all_options: HashMap<String, OptionType>,
+    all_options: Vec<(String, OptionType)>,
   }
 
   #[derive(Clone)]
@@ -606,7 +606,7 @@ mod arguments {
       let mut name = None;
       let mut collecting_flags = true;
       let mut all_flags = Vec::new();
-      let mut all_options = HashMap::new();
+      let mut all_options = Vec::new();
       let mut default = None;
       let mut description = None;
       let mut required = false;
@@ -660,7 +660,7 @@ mod arguments {
             let to = args.pop_front()
                 .unwrap_or_error(String::from("pair of values ({from} {to}) must be provided after --map"))
                 .to_string();
-            all_options.insert(from, OptionType::Mapping(to));
+            all_options.push((from, OptionType::Mapping(to)));
           }
           Some("--option") => {
             collecting_flags = false;
@@ -669,12 +669,12 @@ mod arguments {
                 .to_string();
             let description = args.pop_front();
             if description.is_none() {
-              all_options.insert(from, OptionType::Actual(None));
+              all_options.push((from, OptionType::Actual(None)));
             } else if description.clone().unwrap().starts_with("-") {
               args.push_front(description.unwrap());
-              all_options.insert(from, OptionType::Actual(None));
+              all_options.push((from, OptionType::Actual(None)));
             } else {
-              all_options.insert(from, OptionType::Actual(Some(description.unwrap())));
+              all_options.push((from, OptionType::Actual(Some(description.unwrap()))));
             }
           }
           Some(other) => {
@@ -742,10 +742,10 @@ mod arguments {
           String::from("The possible options are:"),
       ];
 
-      for (option, info) in self.all_options.clone() {
+      for (option, info) in &self.all_options {
         lines.push(format!("•   {} - {}", option, 
             match info {
-              OptionType::Actual(description) => description.unwrap_or(String::from("No details available.")),
+              OptionType::Actual(description) => description.clone().unwrap_or(String::from("No details available.")),
               OptionType::Mapping(actual) => format!("Identical to '{actual}'"),
             }));
       }
@@ -761,11 +761,17 @@ mod arguments {
               .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))
       };
 
-      match self.all_options.get(&value)
-            .unwrap_or_error(format!("Value \"{value}\" not recognized for argument {}", self.get_name())) {
-        OptionType::Mapping(actual) => Some(actual.to_string()),
-        _ => Some(value),
+      for (option, info) in &self.all_options {
+        if option == &value {
+          return match info {
+            OptionType::Actual(_) => Some(value),
+            OptionType::Mapping(actual) => Some(actual.to_string()),
+          }
+        }
       }
+
+      error(format!("Value \"{value}\" not recognized for argument {}", self.get_name()));
+      None
     }
   }
 
