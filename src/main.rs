@@ -1,19 +1,3 @@
-/*
-    secret: bool,
-  --bool is_sunny \
-  --bool is_rainy rainy r \
-  --bool is_snowy snowy s --default true \
-  --bool tornados twisters --map true yes --map false no --map "" maybe \
-  --int temperature temp t \
-  --int wind_speed wind w --default 0 \
-  --float rainfall rain --desc "How much rain is expected to fall" \
-  --choice units unit u --options imperial metric --default metric \
-  --autohelp \
-  --error_code 7 \
-  --export \
-  -- "$@"
-*/
-
 use std::env;
 
 fn main() {
@@ -24,6 +8,10 @@ mod arguments {
   use regex::Regex;
   use std::collections::HashMap;
   use std::collections::VecDeque;
+
+  const HELP_ERROR: i32 = 1;
+  const DEFINITION_ERROR: i32 = 2;
+  const USER_ERROR: i32 = 3;
 
   trait Argument {
     fn get_debug_info(&self) -> String;
@@ -41,7 +29,7 @@ mod arguments {
         MatchResult::MatchWithoutValue => Some(parser(
             self.get_name(),
             &other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))))
+              .unwrap_or_error(USER_ERROR, format!("No value provided for argument {}", self.get_name()))))
       }
     }
 
@@ -194,22 +182,22 @@ mod arguments {
   }
 
   trait OptionExt<T> {
-    fn unwrap_or_error(self, message: String) -> T;
+    fn unwrap_or_error(self, exit_code: i32, message: String) -> T;
   }
 
   impl<T> OptionExt<T> for Option<T> {
-    fn unwrap_or_error(self, message: String) -> T {
+    fn unwrap_or_error(self, exit_code: i32, message: String) -> T {
       if self.is_none() {
-        error(message);
+        error(exit_code, message);
       }
       return self.unwrap();
     }
   }
 
   impl<T, E: std::fmt::Debug> OptionExt<T> for Result<T, E> {
-    fn unwrap_or_error(self, message: String) -> T {
+    fn unwrap_or_error(self, exit_code: i32, message: String) -> T {
       if self.is_err() {
-        error(message);
+        error(exit_code, message);
       }
       return self.unwrap();
     }
@@ -231,7 +219,7 @@ mod arguments {
           }
           Some("--name") => {
             name = Some(args.pop_front()
-                .unwrap_or_error(String::from("name must be provided after --name"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
                 .to_string());
           }
           Some("--secret") => {
@@ -241,7 +229,7 @@ mod arguments {
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
-                .unwrap_or_error(String::from("description must be provided after --desc or --description"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
                 .to_string());
           }
           Some(other) => {
@@ -301,7 +289,7 @@ mod arguments {
         MatchResult::MatchWithoutValue => Some(String::from("true")),
         MatchResult::MatchWithValue(value) => Some(value
             .parse::<bool>()
-            .unwrap_or_error(format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
+            .unwrap_or_error(USER_ERROR, format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
             .to_string()),
       }
     }
@@ -326,7 +314,7 @@ mod arguments {
           }
           Some("--name") => {
             name = Some(args.pop_front()
-                .unwrap_or_error(String::from("name must be provided after --name"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
                 .to_string());
           }
           Some("--required") => {
@@ -348,13 +336,13 @@ mod arguments {
           Some("--default") => {
             collecting_flags = false;
             default = Some(args.pop_front()
-                .unwrap_or_error(String::from("default value must be provided after --default"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
                 .to_string());
           }
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
-                .unwrap_or_error(String::from("description must be provided after --desc or --description"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
                 .to_string());
           }
           Some(other) => {
@@ -401,7 +389,7 @@ mod arguments {
         other_args, 
         |name, value: &String| value
             .parse::<i64>()
-            .unwrap_or_error(format!("Non-integer value \"{value}\" provided for argument {name}"))
+            .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
             .to_string())
     }
   }
@@ -425,7 +413,7 @@ mod arguments {
           }
           Some("--name") => {
             name = Some(args.pop_front()
-                .unwrap_or_error(String::from("name must be provided after --name"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
                 .to_string());
           }
           Some("--required") => {
@@ -447,13 +435,13 @@ mod arguments {
           Some("--default") => {
             collecting_flags = false;
             default = Some(args.pop_front()
-                .unwrap_or_error(String::from("default value must be provided after --default"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
                 .to_string());
           }
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
-                .unwrap_or_error(String::from("description must be provided after --desc or --description"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
                 .to_string());
           }
           Some(other) => {
@@ -500,7 +488,7 @@ mod arguments {
         other_args, 
         |name, value: &String| value
             .parse::<f64>()
-            .unwrap_or_error(format!("Non-numeric value \"{value}\" provided for argument {name}"))
+            .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
             .to_string())
     }
   }
@@ -524,7 +512,7 @@ mod arguments {
           }
           Some("--name") => {
             name = Some(args.pop_front()
-                .unwrap_or_error(String::from("name must be provided after --name"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
                 .to_string());
           }
           Some("--required") => {
@@ -546,13 +534,13 @@ mod arguments {
           Some("--default") => {
             collecting_flags = false;
             default = Some(args.pop_front()
-                .unwrap_or_error(String::from("default value must be provided after --default"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
                 .to_string());
           }
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
-                .unwrap_or_error(String::from("description must be provided after --desc or --description"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
                 .to_string());
           }
           Some(other) => {
@@ -621,7 +609,7 @@ mod arguments {
           }
           Some("--name") => {
             name = Some(args.pop_front()
-                .unwrap_or_error(String::from("name must be provided after --name"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
                 .to_string());
           }
           Some("--required") => {
@@ -643,29 +631,29 @@ mod arguments {
           Some("--default") => {
             collecting_flags = false;
             default = Some(args.pop_front()
-                .unwrap_or_error(String::from("default value must be provided after --default"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
                 .to_string());
           }
           Some("--desc") | Some("--description") => {
             collecting_flags = false;
             description = Some(args.pop_front()
-                .unwrap_or_error(String::from("description must be provided after --desc or --description"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
                 .to_string());
           }
           Some("--map") => {
             collecting_flags = false;
             let from = args.pop_front()
-                .unwrap_or_error(String::from("pair of values ({from} {to}) must be provided after --map"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("pair of values ({from} {to}) must be provided after --map"))
                 .to_string();
             let to = args.pop_front()
-                .unwrap_or_error(String::from("pair of values ({from} {to}) must be provided after --map"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("pair of values ({from} {to}) must be provided after --map"))
                 .to_string();
             all_options.push((from, OptionType::Mapping(to)));
           }
           Some("--option") => {
             collecting_flags = false;
             let from = args.pop_front()
-                .unwrap_or_error(String::from("option must be provided after --option"))
+                .unwrap_or_error(DEFINITION_ERROR, String::from("option must be provided after --option"))
                 .to_string();
             let description = args.pop_front();
             if description.is_none() {
@@ -758,7 +746,7 @@ mod arguments {
         MatchResult::NoMatch => return None,
         MatchResult::MatchWithValue(value) => value,
         MatchResult::MatchWithoutValue => other_args.pop_front()
-              .unwrap_or_error(format!("No value provided for argument {}", self.get_name()))
+              .unwrap_or_error(USER_ERROR, format!("No value provided for argument {}", self.get_name()))
       };
 
       for (option, info) in &self.all_options {
@@ -770,7 +758,7 @@ mod arguments {
         }
       }
 
-      error(format!("Value \"{value}\" not recognized for argument {}", self.get_name()));
+      error(USER_ERROR, format!("Value \"{value}\" not recognized for argument {}", self.get_name()));
       None
     }
   }
@@ -825,17 +813,17 @@ mod arguments {
         }
         Some("--program-name") => {
           program_name = Some(args.pop_front()
-              .unwrap_or_error(String::from("program name prefix must be provided after --program-name"))
+              .unwrap_or_error(DEFINITION_ERROR, String::from("program name prefix must be provided after --program-name"))
               .to_string());
         }
         Some("--program-summary") => {
           program_summary = Some(args.pop_front()
-              .unwrap_or_error(String::from("program summary prefix must be provided after --program-summary"))
+              .unwrap_or_error(DEFINITION_ERROR, String::from("program summary prefix must be provided after --program-summary"))
               .to_string());
         }
         Some("--program-description") => {
           program_description = Some(args.pop_front()
-              .unwrap_or_error(String::from("program description prefix must be provided after --program-description"))
+              .unwrap_or_error(DEFINITION_ERROR, String::from("program description prefix must be provided after --program-description"))
               .to_string());
         }
         Some("--export") => {
@@ -843,14 +831,14 @@ mod arguments {
         }
         Some("--prefix") => {
           prefix = Some(args.pop_front()
-              .unwrap_or_error(String::from("argument name prefix must be provided after --prefix"))
+              .unwrap_or_error(DEFINITION_ERROR, String::from("argument name prefix must be provided after --prefix"))
               .to_string());
         }
         Some("--debug") => {
           debug = true;
         }
         Some(other) => {
-          error(format!("Unrecognized option: {other}"));
+          error(DEFINITION_ERROR, format!("Unrecognized option: {other}"));
         }
       };
     }
@@ -896,7 +884,7 @@ mod arguments {
         .collect();
 
     if catch_all_args.len() > 1 {
-      error(format!("More than one catch-all argument found: {:?}", catch_all_args));
+      error(DEFINITION_ERROR, format!("More than one catch-all argument found: {:?}", catch_all_args));
     }
   }
 
@@ -937,7 +925,7 @@ mod arguments {
       }
     }
 
-    error(format!("Extra argument \"{first}\" passed and no catch-all argument found"));
+    error(USER_ERROR, format!("Extra argument \"{first}\" passed and no catch-all argument found"));
     panic!("");
   }
 
@@ -949,10 +937,10 @@ mod arguments {
       if values.is_some() {
         let values = values.unwrap();
         if !argument.is_repeated() && values.len() > 1 {
-          error(format!("Multiple values found for argument {}", argument.get_name()));
+          error(USER_ERROR, format!("Multiple values found for argument {}", argument.get_name()));
         }
       } else if argument.is_required() {
-        error(format!("Value for argument {} is missing", argument.get_name()));
+        error(USER_ERROR, format!("Value for argument {} is missing", argument.get_name()));
       }
     }
   }
@@ -1022,15 +1010,13 @@ mod arguments {
           println!("       {}", arg.get_help_flags().join(", "));
 
           for detail in arg.get_help_details() {
-            println!("\n           {detail}");
+            println!("           {detail}\n");
           }
 
           match arg.get_help_default() {
             None => {},
-            Some(text) => { println!("\n           {text}"); }
+            Some(text) => { println!("           {text}\n"); }
           }
-
-          println!("");
         }
       }
     }
@@ -1068,7 +1054,7 @@ mod arguments {
 
     if settings.remaining_args.len() == 1 && settings.remaining_args.get(0) == Some(&String::from("--help")) {
       print_help_text(&settings);
-      std::process::exit(1);
+      std::process::exit(HELP_ERROR);
     } else {
       let values = parse_argument_values(&settings);
 
@@ -1077,11 +1063,12 @@ mod arguments {
     }
   }
 
-  fn error<S: AsRef<str>>(message: S) {
+  fn error<S: AsRef<str>>(exit_code: i32, message: S) {
     println!("echo \"\"");
     println!("echo \"!!! ArgParse Error: {} !!!\"", message.as_ref());
     println!("echo \"\"");
-    std::process::exit(2);
+    println!("( exit {exit_code} )");
+    std::process::exit(exit_code);
   }
 
   fn fix_name(name: String) -> String {
