@@ -19,9 +19,9 @@ mod arguments {
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
 
     fn consume_with_parser(
-        &self, 
-        arg: &String, 
-        other_args: &mut VecDeque<String>, 
+        &self,
+        arg: &String,
+        other_args: &mut VecDeque<String>,
         parser: fn(&String, &String) -> String) -> Option<String> {
       match self.get_common().check_flag_match(arg) {
         MatchResult::NoMatch => None,
@@ -41,14 +41,14 @@ mod arguments {
       self.get_common()
           .all_flags
           .iter()
-          .map(|flag| format!("--{} <{}>", flag, self.get_name().to_lowercase()))
+          .map(|flag| format!("{} <{}>", flag, self.get_name().to_lowercase()))
           .collect()
     }
 
     fn get_help_default(&self) -> Option<String> {
       if self.get_default().is_some() {
         Some(format!(
-            "When this option is not provided it will default to '{}'.", 
+            "When this option is not provided it will default to '{}'.",
             self.get_default().clone().unwrap()))
       } else {
         None
@@ -84,6 +84,72 @@ mod arguments {
     }
   }
 
+  struct ArgumentCommonBuilder {
+    name: Option<String>,
+    all_flags: Vec<String>,
+    default: Option<String>,
+    description: Option<String>,
+    required: bool,
+    secret: bool,
+    repeated: bool,
+    catch_all: bool,
+  }
+
+  impl ArgumentCommonBuilder {
+    fn parse_arguments(&mut self, args: &mut VecDeque<String>) -> Option<String> {
+      loop {
+        match args.pop_front().as_deref() {
+          None => { return None; },
+          Some("--required") => { self.required = true; },
+          Some("--secret") => { self.secret = true; },
+          Some("--repeated") | Some("--repeat") => { self.repeated = true; },
+          Some("--catch-all") => { self.catch_all = true; },
+          Some("--name") => {
+              self.name = Some(fix_name(args.pop_front()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
+                .to_string()));
+            },
+          Some("--default") => {
+              self.default = Some(args.pop_front()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
+                .to_string());
+            },
+          Some("--description") => {
+              self.description = Some(args.pop_front()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
+                .to_string());
+            },
+          Some(other) => {
+            if other.starts_with("-") {
+              return Some(other.to_string());
+            } else {
+              if self.name.is_none() {
+                self.name = Some(fix_name(other.to_string()));
+              }
+              self.all_flags = [
+                    self.all_flags.clone(),
+                    vec![format!("--{other}")]
+                  ].concat();
+            }
+          },
+        }
+      }
+    }
+
+    fn build(self) -> ArgumentCommon {
+      ArgumentCommon {
+        name: self.name.unwrap(),
+        all_flags: self.all_flags,
+        default: self.default,
+        description: self.description,
+        required: self.required,
+        secret: self.secret,
+        repeated: self.repeated,
+        catch_all: self.catch_all,
+      }
+    }
+  }
+
   struct ArgumentCommon {
     name: String,
     all_flags: Vec<String>,
@@ -96,6 +162,19 @@ mod arguments {
   }
 
   impl ArgumentCommon {
+    fn new_builder() -> ArgumentCommonBuilder {
+      ArgumentCommonBuilder {
+        name: None,
+        all_flags: Vec::new(),
+        default: None,
+        description: None,
+        required: false,
+        secret: false,
+        repeated: false,
+        catch_all: false,
+      }
+    }
+
     fn get_debug_info(&self) -> String {
       let mut description = format!("name: {}", self.name);
       description.push_str("; flags: ");
@@ -126,9 +205,7 @@ mod arguments {
     }
 
     fn check_flag_match(&self, flag: &String) -> MatchResult {
-      if flag.starts_with("--") {
-        let flag = &flag[2..];
-
+      if flag.starts_with("-") {
         match &flag.to_string().split_once("=") {
           None =>
             if self.all_flags.contains(&flag.to_string()) {
@@ -206,57 +283,16 @@ mod arguments {
 
   impl BooleanArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
-      let mut name = None;
-      let mut collecting_flags = true;
-      let mut all_flags = Vec::new();
-      let mut description = None;
-      let mut secret = false;
-
-      loop {
-        match args.pop_front().as_deref() {
-          None => {
-            break;
-          }
-          Some("--name") => {
-            name = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string());
-          }
-          Some("--secret") => {
-            collecting_flags = false;
-            secret = true;
-          }
-          Some("--desc") | Some("--description") => {
-            collecting_flags = false;
-            description = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
-                .to_string());
-          }
-          Some(other) => {
-            if collecting_flags && !other.starts_with("-") {
-              all_flags.push(other.to_string());
-              if name.is_none() {
-                name = Some(other.to_string());
-              }
-            } else {
-              args.push_front(other.to_string());
-              break;
-            }
-          }
+      let mut common = ArgumentCommon::new_builder();
+      match common.parse_arguments(args) {
+        None => { }
+        Some(other) => {
+          args.push_front(other);
         }
       }
 
       return BooleanArgument {
-        common: ArgumentCommon {
-          name: fix_name(name.unwrap()),
-          all_flags: all_flags,
-          default: None,
-          description: description,
-          required: false,
-          secret: secret,
-          repeated: false,
-          catch_all: false,
-        },
+        common: common.build(),
       };
     }
   }
@@ -297,79 +333,16 @@ mod arguments {
 
   impl IntegerArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
-      let mut name = None;
-      let mut collecting_flags = true;
-      let mut all_flags = Vec::new();
-      let mut default = None;
-      let mut description = None;
-      let mut required = false;
-      let mut secret = false;
-      let mut repeated = false;
-      let mut catch_all = false;
-
-      loop {
-        match args.pop_front().as_deref() {
-          None => {
-            break;
-          }
-          Some("--name") => {
-            name = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string());
-          }
-          Some("--required") => {
-            collecting_flags = false;
-            required = true;
-          }
-          Some("--secret") => {
-            collecting_flags = false;
-            secret = true;
-          }
-          Some("--repeated") | Some("--repeat") => {
-            collecting_flags = false;
-            repeated = true;
-          }
-          Some("--catch-all") => {
-            collecting_flags = false;
-            catch_all = true;
-          }
-          Some("--default") => {
-            collecting_flags = false;
-            default = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
-                .to_string());
-          }
-          Some("--desc") | Some("--description") => {
-            collecting_flags = false;
-            description = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
-                .to_string());
-          }
-          Some(other) => {
-            if collecting_flags && !other.starts_with("-") {
-              all_flags.push(other.to_string());
-              if name.is_none() {
-                name = Some(other.to_string());
-              }
-            } else {
-              args.push_front(other.to_string());
-              break;
-            }
-          }
+      let mut common = ArgumentCommon::new_builder();
+      match common.parse_arguments(args) {
+        None => { }
+        Some(other) => {
+          args.push_front(other);
         }
       }
 
       return IntegerArgument {
-        common: ArgumentCommon {
-          name: fix_name(name.unwrap()),
-          all_flags: all_flags,
-          default: default,
-          description: description,
-          required: required,
-          secret: secret,
-          repeated: repeated,
-          catch_all: catch_all,
-        }
+        common: common.build(),
       };
     }
   }
@@ -385,8 +358,8 @@ mod arguments {
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
-        arg, 
-        other_args, 
+        arg,
+        other_args,
         |name, value: &String| value
             .parse::<i64>()
             .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
@@ -396,79 +369,16 @@ mod arguments {
 
   impl FloatArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
-      let mut name = None;
-      let mut collecting_flags = true;
-      let mut all_flags = Vec::new();
-      let mut default = None;
-      let mut description = None;
-      let mut required = false;
-      let mut secret = false;
-      let mut repeated = false;
-      let mut catch_all = false;
-
-      loop {
-        match args.pop_front().as_deref() {
-          None => {
-            break;
-          }
-          Some("--name") => {
-            name = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string());
-          }
-          Some("--required") => {
-            collecting_flags = false;
-            required = true;
-          }
-          Some("--secret") => {
-            collecting_flags = false;
-            secret = true;
-          }
-          Some("--repeated") | Some("--repeat") => {
-            collecting_flags = false;
-            repeated = true;
-          }
-          Some("--catch-all") => {
-            collecting_flags = false;
-            catch_all = true;
-          }
-          Some("--default") => {
-            collecting_flags = false;
-            default = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
-                .to_string());
-          }
-          Some("--desc") | Some("--description") => {
-            collecting_flags = false;
-            description = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
-                .to_string());
-          }
-          Some(other) => {
-            if collecting_flags && !other.starts_with("-") {
-              all_flags.push(other.to_string());
-              if name.is_none() {
-                name = Some(other.to_string());
-              }
-            } else {
-              args.push_front(other.to_string());
-              break;
-            }
-          }
+      let mut common = ArgumentCommon::new_builder();
+      match common.parse_arguments(args) {
+        None => { }
+        Some(other) => {
+          args.push_front(other);
         }
       }
 
       return FloatArgument {
-        common: ArgumentCommon {
-          name: fix_name(name.unwrap()),
-          all_flags: all_flags,
-          default: default,
-          description: description,
-          required: required,
-          secret: secret,
-          repeated: repeated,
-          catch_all: catch_all,
-        }
+        common: common.build(),
       };
     }
   }
@@ -484,8 +394,8 @@ mod arguments {
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
-        arg, 
-        other_args, 
+        arg,
+        other_args,
         |name, value: &String| value
             .parse::<f64>()
             .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
@@ -495,79 +405,16 @@ mod arguments {
 
   impl StringArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
-      let mut name = None;
-      let mut collecting_flags = true;
-      let mut all_flags = Vec::new();
-      let mut default = None;
-      let mut description = None;
-      let mut required = false;
-      let mut secret = false;
-      let mut repeated = false;
-      let mut catch_all = false;
-
-      loop {
-        match args.pop_front().as_deref() {
-          None => {
-            break;
-          }
-          Some("--name") => {
-            name = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string());
-          }
-          Some("--required") => {
-            collecting_flags = false;
-            required = true;
-          }
-          Some("--secret") => {
-            collecting_flags = false;
-            secret = true;
-          }
-          Some("--repeated") | Some("--repeat") => {
-            collecting_flags = false;
-            repeated = true;
-          }
-          Some("--catch-all") => {
-            collecting_flags = false;
-            catch_all = true;
-          }
-          Some("--default") => {
-            collecting_flags = false;
-            default = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
-                .to_string());
-          }
-          Some("--desc") | Some("--description") => {
-            collecting_flags = false;
-            description = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
-                .to_string());
-          }
-          Some(other) => {
-            if collecting_flags && !other.starts_with("-") {
-              all_flags.push(other.to_string());
-              if name.is_none() {
-                name = Some(other.to_string());
-              }
-            } else {
-              args.push_front(other.to_string());
-              break;
-            }
-          }
+      let mut common = ArgumentCommon::new_builder();
+      match common.parse_arguments(args) {
+        None => { }
+        Some(other) => {
+          args.push_front(other);
         }
       }
 
       return StringArgument {
-        common: ArgumentCommon {
-          name: fix_name(name.unwrap()),
-          all_flags: all_flags,
-          default: default,
-          description: description,
-          required: required,
-          secret: secret,
-          repeated: repeated,
-          catch_all: catch_all,
-        }
+        common: common.build(),
       };
     }
   }
@@ -583,65 +430,21 @@ mod arguments {
 
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
-        arg, 
-        other_args, 
+        arg,
+        other_args,
         |_name, value: &String| value.to_string())
     }
   }
 
   impl ChoiceArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
-      let mut name = None;
-      let mut collecting_flags = true;
-      let mut all_flags = Vec::new();
+      let mut common = ArgumentCommon::new_builder();
       let mut all_options = Vec::new();
-      let mut default = None;
-      let mut description = None;
-      let mut required = false;
-      let mut secret = false;
-      let mut repeated = false;
-      let mut catch_all = false;
 
       loop {
-        match args.pop_front().as_deref() {
-          None => {
-            break;
-          }
-          Some("--name") => {
-            name = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string());
-          }
-          Some("--required") => {
-            collecting_flags = false;
-            required = true;
-          }
-          Some("--secret") => {
-            collecting_flags = false;
-            secret = true;
-          }
-          Some("--repeated") | Some("--repeat") => {
-            collecting_flags = false;
-            repeated = true;
-          }
-          Some("--catch-all") => {
-            collecting_flags = false;
-            catch_all = true;
-          }
-          Some("--default") => {
-            collecting_flags = false;
-            default = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
-                .to_string());
-          }
-          Some("--desc") | Some("--description") => {
-            collecting_flags = false;
-            description = Some(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
-                .to_string());
-          }
+        match common.parse_arguments(args).as_deref() {
+          None => { break; }
           Some("--map") => {
-            collecting_flags = false;
             let from = args.pop_front()
                 .unwrap_or_error(DEFINITION_ERROR, String::from("pair of values ({from} {to}) must be provided after --map"))
                 .to_string();
@@ -651,7 +454,6 @@ mod arguments {
             all_options.push((from, OptionType::Mapping(to)));
           }
           Some("--option") => {
-            collecting_flags = false;
             let from = args.pop_front()
                 .unwrap_or_error(DEFINITION_ERROR, String::from("option must be provided after --option"))
                 .to_string();
@@ -666,30 +468,14 @@ mod arguments {
             }
           }
           Some(other) => {
-            if collecting_flags && !other.starts_with("-") {
-              all_flags.push(other.to_string());
-              if name.is_none() {
-                name = Some(other.to_string());
-              }
-            } else {
-              args.push_front(other.to_string());
-              break;
-            }
+            args.push_front(other.to_string());
+            break;
           }
         }
       }
 
       return ChoiceArgument {
-        common: ArgumentCommon {
-          name: fix_name(name.unwrap()),
-          all_flags: all_flags,
-          default: default,
-          description: description,
-          required: required,
-          secret: secret,
-          repeated: repeated,
-          catch_all: catch_all,
-        },
+        common: common.build(),
         all_options: all_options,
       };
     }
@@ -731,7 +517,7 @@ mod arguments {
       ];
 
       for (option, info) in &self.all_options {
-        lines.push(format!("•   {} - {}", option, 
+        lines.push(format!("•   {} - {}", option,
             match info {
               OptionType::Actual(description) => description.clone().unwrap_or(String::from("No details available.")),
               OptionType::Mapping(actual) => format!("Identical to '{actual}'"),
@@ -859,7 +645,7 @@ mod arguments {
   fn debug_setup(settings: &Settings) {
     output_debug(settings, "ArgParse debugging enabled with --debug flag");
     output_debug(settings, format!(
-        "Arguments {} exported to child processes", 
+        "Arguments {} exported to child processes",
         if settings.export { "are" } else { "are not" }));
 
     if settings.prefix.is_some() {
@@ -1038,7 +824,7 @@ mod arguments {
 
   fn output_argument<V: std::fmt::Display>(settings: &Settings, name: &String, value: V) {
     output_debug(settings, format!(
-        "Setting {}{name} = \\\"{value}\\\"", 
+        "Setting {}{name} = \\\"{value}\\\"",
         settings.prefix.clone().unwrap_or(String::from(""))));
 
     println!("{}{}{name}=\"{value}\"",
