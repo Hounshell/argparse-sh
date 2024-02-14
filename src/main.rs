@@ -115,22 +115,21 @@ mod arguments {
                 .unwrap_or_error(DEFINITION_ERROR, String::from("default value must be provided after --default"))
                 .to_string());
             },
-          Some("--description") => {
+          Some("--description") | Some("--desc") => {
               self.description = Some(args.pop_front()
                 .unwrap_or_error(DEFINITION_ERROR, String::from("description must be provided after --desc or --description"))
+                .to_string());
+            },
+          Some("--flag") => {
+              self.all_flags.push(args.pop_front()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("flag name must be provided after --flag"))
                 .to_string());
             },
           Some(other) => {
             if other.starts_with("-") {
               return Some(other.to_string());
             } else {
-              if self.name.is_none() {
-                self.name = Some(fix_name(other.to_string()));
-              }
-              self.all_flags = [
-                    self.all_flags.clone(),
-                    vec![format!("--{other}")]
-                  ].concat();
+              self.all_flags.push(format!("--{other}"));
             }
           },
         }
@@ -138,8 +137,16 @@ mod arguments {
     }
 
     fn build(self) -> ArgumentCommon {
+      let name = fix_name(self.name
+            .or(self.all_flags.get(0).cloned())
+            .unwrap_or_error(DEFINITION_ERROR, String::from("no name or flags provided for argument")));
+
+      if self.all_flags.is_empty() && !self.catch_all {
+        error(DEFINITION_ERROR, format!("{name} argument can not be set - no flags and not a catch-all argument"))
+      }
+
       ArgumentCommon {
-        name: self.name.unwrap(),
+        name: name,
         all_flags: self.all_flags,
         default: self.default,
         description: self.description,
@@ -301,7 +308,7 @@ mod arguments {
       self.common
           .all_flags
           .iter()
-          .map(|flag| format!("--{}[=<true|false>]", flag))
+          .map(|flag| format!("{}[=<true|false>]", flag))
           .collect()
     }
 
