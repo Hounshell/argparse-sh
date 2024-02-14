@@ -1,3 +1,6 @@
+echo "Running..."
+
+set -e
 eval "$(target/debug/argparse \
   --bool is-sunny \
   --bool is-rainy rainy r --name kinda----rainy \
@@ -11,8 +14,13 @@ eval "$(target/debug/argparse \
   --prefix "TEST_ARG_" \
   --export \
   --debug \
-  --program-name "$0" \
+  --program-name "$(basename "$0")" \
   --program-summary "ArgParse Test Script" \
   --program-description "This is a test script, used to demonstrate various ArgParse features." \
-  -- "$@")"
+  -- "$@")";
+
+echo $?
+echo "Complete"
+
+echo "$TEST_ARG_TEXT"
 
