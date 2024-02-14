@@ -1054,7 +1054,9 @@ mod arguments {
 
     if settings.remaining_args.len() == 1 && settings.remaining_args.get(0) == Some(&String::from("--help")) {
       print_help_text(&settings);
+      println!("( exit {HELP_ERROR} )");
       std::process::exit(HELP_ERROR);
+
     } else {
       let values = parse_argument_values(&settings);
 
