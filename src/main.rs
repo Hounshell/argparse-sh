@@ -17,6 +17,7 @@ mod arguments {
     fn get_debug_info(&self) -> String;
     fn get_common(&self) -> &ArgumentCommon;
     fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
+    fn parse(&self, value: &String) -> String;
 
     fn consume_with_parser(
         &self,
@@ -217,8 +218,6 @@ mod arguments {
               return MatchResult::MatchWithValue(value.to_string());
             }
         }
-      } else if self.catch_all {
-        return MatchResult::MatchWithValue(flag.to_string());
       }
 
       return MatchResult::NoMatch;
@@ -323,11 +322,15 @@ mod arguments {
       match self.common.check_flag_match(arg) {
         MatchResult::NoMatch => None,
         MatchResult::MatchWithoutValue => Some(String::from("true")),
-        MatchResult::MatchWithValue(value) => Some(value
-            .parse::<bool>()
-            .unwrap_or_error(USER_ERROR, format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
-            .to_string()),
+        MatchResult::MatchWithValue(value) => Some(self.parse(&value)),
       }
+    }
+
+    fn parse(&self, value: &String) -> String {
+      value
+          .parse::<bool>()
+          .unwrap_or_error(USER_ERROR, format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
+          .to_string()
     }
   }
 
@@ -360,11 +363,19 @@ mod arguments {
       self.consume_with_parser(
         arg,
         other_args,
-        |name, value: &String| value
-            .parse::<i64>()
-            .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
-            .to_string())
+        |name, value: &String| parse_integer(name, value))
     }
+
+    fn parse(&self, value: &String) -> String {
+      parse_integer(self.get_name(), value)
+    }
+  }
+
+  fn parse_integer(name: &String, value: &String) -> String {
+    value
+        .parse::<i64>()
+        .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
+        .to_string()
   }
 
   impl FloatArgument {
@@ -396,12 +407,21 @@ mod arguments {
       self.consume_with_parser(
         arg,
         other_args,
-        |name, value: &String| value
-            .parse::<f64>()
-            .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
-            .to_string())
+        |name, value: &String| parse_float(name, value))
+    }
+
+    fn parse(&self, value: &String) -> String {
+      parse_float(self.get_name(), value)
     }
   }
+
+  fn parse_float(name: &String, value: &String) -> String {
+    value
+        .parse::<f64>()
+        .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
+        .to_string()
+  }
+
 
   impl StringArgument {
     fn new(args: &mut VecDeque<String>) -> Self {
@@ -433,6 +453,10 @@ mod arguments {
         arg,
         other_args,
         |_name, value: &String| value.to_string())
+    }
+  
+    fn parse(&self, value: &String) -> String {
+      value.clone()
     }
   }
 
@@ -535,17 +559,21 @@ mod arguments {
               .unwrap_or_error(USER_ERROR, format!("No value provided for argument {}", self.get_name()))
       };
 
+      Some(self.parse(&value))
+    }
+  
+    fn parse(&self, value: &String) -> String {
       for (option, info) in &self.all_options {
-        if option == &value {
+        if option == value {
           return match info {
-            OptionType::Actual(_) => Some(value),
-            OptionType::Mapping(actual) => Some(actual.to_string()),
+            OptionType::Actual(_) => value.clone(),
+            OptionType::Mapping(actual) => actual.clone(),
           }
         }
       }
-
+      
       error(USER_ERROR, format!("Value \"{value}\" not recognized for argument {}", self.get_name()));
-      None
+      panic!("");
     }
   }
 
@@ -663,17 +691,6 @@ mod arguments {
     }
   }
 
-  fn validate_setup(settings: &Settings) {
-    let catch_all_args: Vec<&String> = settings.arguments.iter()
-        .filter(|a| a.is_catch_all())
-        .map(|a| a.get_name())
-        .collect();
-
-    if catch_all_args.len() > 1 {
-      error(DEFINITION_ERROR, format!("More than one catch-all argument found: {:?}", catch_all_args));
-    }
-  }
-
   fn parse_argument_values(settings: &Settings) -> HashMap<String, Vec<String>> {
     let mut args = VecDeque::from(settings.remaining_args.clone());
 
@@ -685,7 +702,7 @@ mod arguments {
 
     while !args.is_empty() {
       let arg = args.pop_front().unwrap();
-      let (name, value) = parse_argument_value(&settings, &arg, &mut args);
+      let (name, value) = parse_argument_value(&settings, &arg, &mut args, &result);
 
       let mut all_values = result.remove(&name).unwrap_or(Vec::new());
       all_values.push(value);
@@ -699,7 +716,9 @@ mod arguments {
       settings: &Settings,
       first: &String,
       rest: &mut VecDeque<String>,
+      known_values: &HashMap<String, Vec<String>>,
   ) -> (String, String) {
+    // First pass handles `--arg value` and `--arg=value` cases.
     for argument in settings.arguments.iter() {
       match argument.consume(first, rest) {
         None => {}
@@ -708,6 +727,16 @@ mod arguments {
           output_debug(settings, format!("Parsed argument {name} = '{value}'"));
           return (name, value);
         }
+      }
+    }
+
+    // Second pass handles catch-all cases.
+    for argument in settings.arguments.iter() {
+      let name = argument.get_name().to_string();
+      if argument.is_catch_all() && (argument.is_repeated() || !known_values.contains_key(&name)) {
+        let value = argument.parse(first);
+        output_debug(settings, format!("Parsed argument {name} = '{value}'"));
+        return (name, value);
       }
     }
 
@@ -836,7 +865,6 @@ mod arguments {
     let settings = parse_settings(args);
 
     debug_setup(&settings);
-    validate_setup(&settings);
 
     if settings.remaining_args.len() == 1 && settings.remaining_args.get(0) == Some(&String::from("--help")) {
       print_help_text(&settings);
