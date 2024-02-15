@@ -14,14 +14,21 @@ mod arguments {
   const USER_ERROR: i32 = 3;
 
   trait Argument {
+    /// Provides a terse representation of the argument, suitable for debugging.
     fn get_debug_info(&self) -> String;
+
+    /// Gets the ArgumentCommon pieces of the Argument.
     fn get_common(&self) -> &ArgumentCommon;
-    fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String>;
-    fn parse(&self, value: &String) -> String;
+
+    /// Attempts to consume the provided argument. 
+    ///
+    /// Return value is None if the argument couldn't be consumed, Some(value) if it could. This
+    /// may or may not remove additional items from the `other_args` queue.
+    fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String>;
 
     fn consume_with_parser(
         &self,
-        arg: &String,
+        arg: Option<String>,
         other_args: &mut VecDeque<String>,
         parser: fn(&String, &String) -> String) -> Option<String> {
       match self.get_common().check_flag_match(arg) {
@@ -106,9 +113,9 @@ mod arguments {
           Some("--repeated") | Some("--repeat") => { self.repeated = true; },
           Some("--catch-all") => { self.catch_all = true; },
           Some("--name") => {
-              self.name = Some(fix_name(args.pop_front()
+              self.name = Some(args.pop_front()
                 .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
-                .to_string()));
+                .to_string());
             },
           Some("--default") => {
               self.default = Some(args.pop_front()
@@ -137,9 +144,13 @@ mod arguments {
     }
 
     fn build(self) -> ArgumentCommon {
-      let name = fix_name(self.name
-            .or(self.all_flags.get(0).cloned())
-            .unwrap_or_error(DEFINITION_ERROR, String::from("no name or flags provided for argument")));
+      let mut name = self.name;
+      if name.is_none() {
+        name = Some(fix_name(self.all_flags.get(0)
+            .cloned()
+            .unwrap_or_error(DEFINITION_ERROR, String::from("no name or flags provided for argument"))));
+      }
+      let name = name.unwrap();
 
       if self.all_flags.is_empty() && !self.catch_all {
         error(DEFINITION_ERROR, format!("{name} argument can not be set - no flags and not a catch-all argument"))
@@ -212,18 +223,21 @@ mod arguments {
       return description;
     }
 
-    fn check_flag_match(&self, flag: &String) -> MatchResult {
-      if flag.starts_with("-") {
-        match &flag.to_string().split_once("=") {
-          None =>
-            if self.all_flags.contains(&flag.to_string()) {
-              return MatchResult::MatchWithoutValue;
-            },
+    fn check_flag_match(&self, flag: Option<String>) -> MatchResult {
+      match flag {
+        None => { return MatchResult::MatchWithoutValue; },
+        Some(flag) => {
+          match &flag.to_string().split_once("=") {
+            None =>
+              if self.all_flags.contains(&flag.to_string()) {
+                return MatchResult::MatchWithoutValue;
+              },
 
-          Some((name, value)) =>
-            if self.all_flags.contains(&name.to_string()) {
-              return MatchResult::MatchWithValue(value.to_string());
-            }
+            Some((name, value)) =>
+              if self.all_flags.contains(&name.to_string()) {
+                return MatchResult::MatchWithValue(value.to_string());
+              }
+          }
         }
       }
 
@@ -308,7 +322,7 @@ mod arguments {
       self.common
           .all_flags
           .iter()
-          .map(|flag| format!("{}[=<true|false>]", flag))
+          .map(|flag| format!("{flag}[=<true|false>]"))
           .collect()
     }
 
@@ -325,19 +339,15 @@ mod arguments {
       return format!("type: Boolean; {}", self.common.get_debug_info());
     }
 
-    fn consume(&self, arg: &String, _other_args: &mut VecDeque<String>) -> Option<String> {
+    fn consume(&self, arg: Option<String>, _other_args: &mut VecDeque<String>) -> Option<String> {
       match self.common.check_flag_match(arg) {
         MatchResult::NoMatch => None,
         MatchResult::MatchWithoutValue => Some(String::from("true")),
-        MatchResult::MatchWithValue(value) => Some(self.parse(&value)),
-      }
-    }
-
-    fn parse(&self, value: &String) -> String {
-      value
+        MatchResult::MatchWithValue(value) => Some(value
           .parse::<bool>()
           .unwrap_or_error(USER_ERROR, format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
-          .to_string()
+          .to_string()),
+      }
     }
   }
 
@@ -366,23 +376,15 @@ mod arguments {
       return format!("type: Integer; {}", self.common.get_debug_info());
     }
 
-    fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
+    fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
         arg,
         other_args,
-        |name, value: &String| parse_integer(name, value))
+        |name, value: &String| value
+            .parse::<i64>()
+            .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
+            .to_string())
     }
-
-    fn parse(&self, value: &String) -> String {
-      parse_integer(self.get_name(), value)
-    }
-  }
-
-  fn parse_integer(name: &String, value: &String) -> String {
-    value
-        .parse::<i64>()
-        .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
-        .to_string()
   }
 
   impl FloatArgument {
@@ -410,23 +412,15 @@ mod arguments {
       return format!("type: Float; {}", self.common.get_debug_info());
     }
 
-    fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
+    fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
         arg,
         other_args,
-        |name, value: &String| parse_float(name, value))
+        |name, value: &String| value
+            .parse::<f64>()
+            .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
+            .to_string())
     }
-
-    fn parse(&self, value: &String) -> String {
-      parse_float(self.get_name(), value)
-    }
-  }
-
-  fn parse_float(name: &String, value: &String) -> String {
-    value
-        .parse::<f64>()
-        .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
-        .to_string()
   }
 
 
@@ -455,15 +449,11 @@ mod arguments {
       return format!("type: String; {}", self.common.get_debug_info());
     }
 
-    fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
+    fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String> {
       self.consume_with_parser(
         arg,
         other_args,
-        |_name, value: &String| value.to_string())
-    }
-  
-    fn parse(&self, value: &String) -> String {
-      value.clone()
+        |_name, value: &String| value.clone())
     }
   }
 
@@ -558,7 +548,7 @@ mod arguments {
       lines
     }
 
-    fn consume(&self, arg: &String, other_args: &mut VecDeque<String>) -> Option<String> {
+    fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String> {
       let value = match self.common.check_flag_match(arg) {
         MatchResult::NoMatch => return None,
         MatchResult::MatchWithValue(value) => value,
@@ -566,19 +556,15 @@ mod arguments {
               .unwrap_or_error(USER_ERROR, format!("No value provided for argument {}", self.get_name()))
       };
 
-      Some(self.parse(&value))
-    }
-  
-    fn parse(&self, value: &String) -> String {
       for (option, info) in &self.all_options {
-        if option == value {
+        if option == &value {
           return match info {
-            OptionType::Actual(_) => value.clone(),
-            OptionType::Mapping(actual) => actual.clone(),
+            OptionType::Actual(_) => Some(value.clone()),
+            OptionType::Mapping(actual) => Some(actual.clone()),
           }
         }
       }
-      
+
       error(USER_ERROR, format!("Value \"{value}\" not recognized for argument {}", self.get_name()));
       panic!("");
     }
@@ -727,7 +713,7 @@ mod arguments {
   ) -> (String, String) {
     // First pass handles `--arg value` and `--arg=value` cases.
     for argument in settings.arguments.iter() {
-      match argument.consume(first, rest) {
+      match argument.consume(Some(first.clone()), rest) {
         None => {}
         Some(value) => {
           let name = argument.get_name().to_string();
@@ -741,7 +727,7 @@ mod arguments {
     for argument in settings.arguments.iter() {
       let name = argument.get_name().to_string();
       if argument.is_catch_all() && (argument.is_repeated() || !known_values.contains_key(&name)) {
-        let value = argument.parse(first);
+        let value = argument.consume(None, &mut VecDeque::from(vec![first.clone()])).unwrap();
         output_debug(settings, format!("Parsed argument {name} = '{value}'"));
         return (name, value);
       }
@@ -895,10 +881,12 @@ mod arguments {
   }
 
   fn fix_name(name: String) -> String {
-    Regex::new(r"[^a-zA-Z0-9]+")
+    Regex::new(r"[a-zA-Z0-9]+")
         .unwrap()
-        .replace_all(name.as_str(), "_")
-        .to_string()
+        .find_iter(name.as_str())
+        .map(|m| m.as_str())
+        .collect::<Vec<&str>>()
+        .join("_")
         .to_uppercase()
   }
 }
