@@ -164,8 +164,8 @@ mod arguments {
       }
       let name = name.unwrap();
 
-      if self.all_flags.is_empty() && !self.catch_all {
-        error(DEFINITION_ERROR, format!("{name} argument can not be set - no flags and not a catch-all argument"))
+      if self.all_flags.is_empty() && !self.catch_all && self.ordinals.is_empty() {
+        error(DEFINITION_ERROR, format!("{name} argument can not be set - no flags, no ordinal, and not a catch-all argument"))
       }
 
       ArgumentCommon {
@@ -360,7 +360,7 @@ mod arguments {
         MatchResult::MatchWithoutValue => Some(String::from("true")),
         MatchResult::MatchWithValue(value) => Some(value
           .parse::<bool>()
-          .unwrap_or_error(USER_ERROR, format!("Non-boolean value \"{value}\" provided for argument {}", self.get_name()))
+          .unwrap_or_error(USER_ERROR, format!("Non-boolean value '{value}' provided for argument {}", self.get_name()))
           .to_string()),
       }
     }
@@ -397,7 +397,7 @@ mod arguments {
         other_args,
         |name, value: &String| value
             .parse::<i64>()
-            .unwrap_or_error(USER_ERROR, format!("Non-integer value \"{value}\" provided for argument {name}"))
+            .unwrap_or_error(USER_ERROR, format!("Non-integer value '{value}' provided for argument {name}"))
             .to_string())
     }
   }
@@ -433,7 +433,7 @@ mod arguments {
         other_args,
         |name, value: &String| value
             .parse::<f64>()
-            .unwrap_or_error(USER_ERROR, format!("Non-numeric value \"{value}\" provided for argument {name}"))
+            .unwrap_or_error(USER_ERROR, format!("Non-numeric value '{value}' provided for argument {name}"))
             .to_string())
     }
   }
