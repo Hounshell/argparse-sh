@@ -5,8 +5,20 @@ Utility for parsing arguments to shell scripts and providing the results as envi
 # Usage
 
 ArgParse takes two sets of arguments. The first set defines all of the arguments that will be
-parsed. The second set it the arguments to parse. This is probably best clarified via a minimal
+parsed. The second set is the arguments to parse. This is probably best clarified via a minimal
 demonstration:
+
+```sh
+$ argparse --string text -- --text "Hello, world!"
+TEXT="Hello, world!"
+```
+
+What did this do? It defined a set of arguments (one string argument called "text") and then
+parsed a set of argument values. The output is a script that sets environment variables for the
+arguments provided.
+
+This is a minimal example, but it isn't a very useful one. Instead lets drop this into a script
+and pass arguments on the script through to ArgParse:
 
 **demo.sh**
 
@@ -22,10 +34,10 @@ Let's break this script up into various pieces:
 - `--string text` - This indicates to ArgParse that we can accept an optional argument called
   "text". The value is a string and there is no default value.
 
-- `--` - This indicates to ArgParse that we are done defining arguments. All remaining arguments
-  should be treated as values.
+- `--` - This indicates to ArgParse that we are done defining arguments. All remaining command line
+  parameters should be treated as argument values.
 
-- `"$@"` - This forwards all of the arguments that the script was called with to ArgParse. Because
+- `"$@"` - This forwards all of the parameters that the script was called with to ArgParse. Because
   this is after the `--`, ArgParse will interpret these parameters.
 
 - `eval "$(...)";` - The output of ArgParse is script commands. `eval` executes these commands in
@@ -51,20 +63,59 @@ ArgParse output to dump to the screen, allowing us to see what is happening more
 
 ## Argument Types
 
-argparse --string name --desc "The user's first name" --autohelp -- --help
 There are several supported argument types. Generally they share the same set of options (where it
 makes sense for them to do so), and some have additional options or forms.
 
 ### Common Argument Parameters
 
-All arguments are specified using their type, followed by all of the different keys that can be
-used to specify them. After that there are a number of common parameters that can be provided:
+There is a common pattern to defining arguments, as well as a number of common parameters that can
+be provided:
+
+#### --\<type> \[\<name / key 1> \<key 2> \<key 3> ...]
+
+To begin defining an argument we need to specify the argument type. After the type we may provide
+shorthand for the name and the keys that can be used to provide this argument. This shorthand
+covers the most common cases, but you are not required to use it; the name and flags can be defined
+individually.
+
+The types available are:
+
+- **--boolean** or **--bool** - A "true" or "false" value.
+- **--choice** or **--pick** - One selection from a list of options.
+- **--float** or **--number** - A 64 bit floating point number.
+- **--integer** or **--int** - A 64 bit signed integer.
+- **--string** or **--str** - Free-form text.
+
+##### Example:
+
+```sh
+$ argparse --string given-name first-name name-- --first-name "Alice"
+GIVEN_NAME="Alice"
+```
+
+This creates a single string argument called "GIVEN\_NAME" that can be set using either
+`--given-name`, `--first-name`, or `--name`. This is the shorthand form of:
+
+```sh
+$ argparse --string --name GIVEN_NAME \
+    --flag "--given-name" \
+    --flag "--first-name" \
+    --flag "--name" \
+    -- --first-name "Alice"
+GIVEN_NAME="Alice"
+```
 
 #### --name <name>
 
 Provide the name of the environment variable the value for this argument will be stored in. If the
 name is not provided, the name will be a normalized version of the first flag name that is
-provided (capitalized and non-alphanumeric sequences will be replaced with "\_"). 
+provided (capitalized and non-alphanumeric sequences will be replaced with "\_").
+
+If the name is not provided, the first flag defined (either using --flag or the shorthand above)
+will be normalized and used. Normalization removes any preceeding or trailing non-alphanumeric
+characters. All other sequences of non-alphanumeric sequences will be replaced with "\_" and the
+entire string will be capitalized. For example, if the first flag is "--first-name" the normalized
+name would be "FIRST\_NAME".
 
 ##### Example:
 
@@ -76,7 +127,23 @@ FIRST_NAME="Alice"
 This will configure a string argument that can be set using `--name "Name"`, but will be stored in
 the `FIRST_NAME` environment variable.
 
-#### --default <default>
+#### --flag \<flag>
+
+Provides a flag that can be used to specify this argument's value. The flag will be used as-is,
+with capitalization and hyphens. This is a good way to support shorter flags. You are allowed to
+specify a flag name without a hyphen at all.
+
+##### Example:
+
+```sh
+$ argparse --string name --flag "-n" -- -n Alice
+NAME="Alice"
+```
+
+This defines a string argument called "NAME" using the shorthand method, but an alternate flag
+("-n") is also defined as available for use.
+
+#### --default \<default>
 
 Provide the default value to use if this argument is not specified. 
 
@@ -478,7 +545,7 @@ environment variables.
 Feel free to save this script and run it with a variety of parameters to test things out.";
 
 # Run ArgParse with argument definitions and pass command line through.
-eval "$(target/debug/argparse \
+eval "$(argparse \
   --string given-name first-name \
       --description "Name given to you. In western cultures this is usually your first name." \
       --required \
