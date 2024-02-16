@@ -12,9 +12,11 @@ Feel free to save this script and run it with a variety of parameters to test th
 eval "$(target/debug/argparse \
   --string given-name first-name \
       --description "Name given to you. In western cultures this is usually your first name." \
+      --ordinal 0 \
       --required \
   --string family-name last-name \
       --description "Name inherited from your family. In western cultures this is usually your last name." \
+      --ordinal 1 \
       --required \
   --string nickname \
       --name NICKNAMES \
@@ -22,6 +24,7 @@ eval "$(target/debug/argparse \
       --repeated \
   --integer age \
       --description "Your age in years." \
+      --flag "-a" \
       --required \
   --integer children \
       --default 0 \
@@ -48,6 +51,7 @@ eval "$(target/debug/argparse \
   --program-name "$(basename "$0")" \
   --program-summary "Sample script that uses argparse to parse command line arguments." \
   --program-description "$PROGRAM_DESCRIPTION" \
+  --debug \
   -- "$@")";
 
 # Dump some of the basic variables to the screen.

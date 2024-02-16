@@ -87,6 +87,10 @@ mod arguments {
       self.get_common().required
     }
 
+    fn is_ordinal(&self, ordinal: u16) -> bool {
+      self.get_common().ordinals.contains(&ordinal)
+    }
+
     fn is_catch_all(&self) -> bool {
       self.get_common().catch_all
     }
@@ -100,6 +104,7 @@ mod arguments {
     required: bool,
     secret: bool,
     repeated: bool,
+    ordinals: Vec<u16>,
     catch_all: bool,
   }
 
@@ -112,6 +117,13 @@ mod arguments {
           Some("--secret") => { self.secret = true; },
           Some("--repeated") | Some("--repeat") => { self.repeated = true; },
           Some("--catch-all") => { self.catch_all = true; },
+          Some("--ordinal") | Some("--order") | Some("--ord") => {
+              self.ordinals.push(args.pop_front() 
+                .unwrap_or_error(DEFINITION_ERROR, String::from("ordinal position must be provided after --ordinal or --order or --ord"))
+                .to_string()
+                .parse::<u16>()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("ordinal position must be an integer between 0 and 65,535")));
+          }
           Some("--name") => {
               self.name = Some(args.pop_front()
                 .unwrap_or_error(DEFINITION_ERROR, String::from("name must be provided after --name"))
@@ -164,6 +176,7 @@ mod arguments {
         required: self.required,
         secret: self.secret,
         repeated: self.repeated,
+        ordinals: self.ordinals,
         catch_all: self.catch_all,
       }
     }
@@ -177,6 +190,7 @@ mod arguments {
     required: bool,
     secret: bool,
     repeated: bool,
+    ordinals: Vec<u16>,
     catch_all: bool,
   }
 
@@ -190,6 +204,7 @@ mod arguments {
         required: false,
         secret: false,
         repeated: false,
+        ordinals: Vec::new(),
         catch_all: false,
       }
     }
@@ -692,10 +707,12 @@ mod arguments {
     output_debug(settings, "");
 
     let mut result = HashMap::new();
+    let mut ordinal = 0_u16;
 
     while !args.is_empty() {
       let arg = args.pop_front().unwrap();
-      let (name, value) = parse_argument_value(&settings, &arg, &mut args, &result);
+      let (name, value, new_ordinal) = parse_argument_value(&settings, ordinal, &arg, &mut args, &result);
+      ordinal = new_ordinal;
 
       let mut all_values = result.remove(&name).unwrap_or(Vec::new());
       all_values.push(value);
@@ -707,29 +724,40 @@ mod arguments {
 
   fn parse_argument_value(
       settings: &Settings,
+      ordinal: u16,
       first: &String,
       rest: &mut VecDeque<String>,
       known_values: &HashMap<String, Vec<String>>,
-  ) -> (String, String) {
-    // First pass handles `--arg value` and `--arg=value` cases.
+  ) -> (String, String, u16) {
+    // First pass handles flag cases (`--arg value` and `--arg=value`).
     for argument in settings.arguments.iter() {
       match argument.consume(Some(first.clone()), rest) {
         None => {}
         Some(value) => {
           let name = argument.get_name().to_string();
-          output_debug(settings, format!("Parsed argument {name} = '{value}'"));
-          return (name, value);
+          output_debug(settings, format!("Parsed argument {name} = '{value}' [flag: '{first}']"));
+          return (name, value, ordinal);
         }
       }
     }
 
-    // Second pass handles catch-all cases.
+    // Second pass handles ordinals.
     for argument in settings.arguments.iter() {
-      let name = argument.get_name().to_string();
-      if argument.is_catch_all() && (argument.is_repeated() || !known_values.contains_key(&name)) {
+      if argument.is_ordinal(ordinal) {
+        let name = argument.get_name().to_string();
         let value = argument.consume(None, &mut VecDeque::from(vec![first.clone()])).unwrap();
-        output_debug(settings, format!("Parsed argument {name} = '{value}'"));
-        return (name, value);
+        output_debug(settings, format!("Parsed argument {name} = '{value}' [ordinal: {ordinal}]"));
+        return (name, value, ordinal + 1);
+      }
+    }
+
+    // Third pass handles catch-all cases.
+    for argument in settings.arguments.iter() {
+      if argument.is_catch_all() && (argument.is_repeated() || !known_values.contains_key(argument.get_name())) {
+        let name = argument.get_name().to_string();
+        let value = argument.consume(None, &mut VecDeque::from(vec![first.clone()])).unwrap();
+        output_debug(settings, format!("Parsed argument {name} = '{value}' [catch-all]"));
+        return (name, value, ordinal + 1);
       }
     }
 
