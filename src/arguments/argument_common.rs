@@ -19,6 +19,7 @@ struct ArgumentCommonBuilderData {
 
 pub trait ArgumentCommonBuilder {
   fn parse_arguments(&mut self, args: &mut VecDeque<String>) -> Option<String>;
+  fn add_flag(&mut self, flag: String);
   fn build(self) -> ArgumentCommon;
 }
 
@@ -67,6 +68,10 @@ impl ArgumentCommonBuilder for ArgumentCommonBuilderData {
         },
       }
     }
+  }
+
+  fn add_flag(&mut self, flag: String) {
+    self.all_flags.push(flag);
   }
 
   fn build(self) -> ArgumentCommon {
@@ -174,7 +179,7 @@ impl ArgumentCommon {
 
           Some((name, value)) =>
             if self.all_flags.contains(&name.to_string()) {
-              return MatchResult::MatchWithValue(value.to_string());
+              return MatchResult::MatchWithValue(name.to_string(), value.to_string());
             }
         }
       }
@@ -185,7 +190,7 @@ impl ArgumentCommon {
 }
 
 pub enum MatchResult {
-  MatchWithValue(String),
+  MatchWithValue(String, String),
   MatchWithoutValue,
   NoMatch,
 }

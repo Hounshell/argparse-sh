@@ -89,7 +89,7 @@ The types available are:
 ##### Example:
 
 ```sh
-$ argparse --string given-name first-name name-- --first-name "Alice"
+$ argparse --string given-name first-name name -- --first-name "Alice"
 GIVEN_NAME="Alice"
 ```
 
@@ -105,11 +105,9 @@ $ argparse --string --name GIVEN_NAME \
 GIVEN_NAME="Alice"
 ```
 
-#### --name <name>
+#### --name \<name>
 
-Provide the name of the environment variable the value for this argument will be stored in. If the
-name is not provided, the name will be a normalized version of the first flag name that is
-provided (capitalized and non-alphanumeric sequences will be replaced with "\_").
+Provide the name of the environment variable the value for this argument will be stored in.
 
 If the name is not provided, the first flag defined (either using --flag or the shorthand above)
 will be normalized and used. Normalization removes any preceeding or trailing non-alphanumeric
@@ -136,12 +134,12 @@ specify a flag name without a hyphen at all.
 ##### Example:
 
 ```sh
-$ argparse --string name --flag "-n" -- -n Alice
+$ argparse --string name --flag "--first-name" --flag "-n" -- -n Alice
 NAME="Alice"
 ```
 
-This defines a string argument called "NAME" using the shorthand method, but an alternate flag
-("-n") is also defined as available for use.
+This defines a string argument called "NAME" using the shorthand method, but alternate flags
+("--first-name" and "-n") are also defined as available for use.
 
 #### --default \<default>
 
@@ -166,11 +164,11 @@ Provide a description to use for this argument when generating help text.
 ##### Example:
 
 ```sh
-$ eval "$(argparse --string name --desc "The user's first name" --autohelp -- --help)"
+$ eval "$(argparse --string name --desc "The user's first name." --autohelp -- --help)"
 
 OPTIONS
        --name <name>
-           The user's first name
+           The user's first name.
 
 ```
 
@@ -232,6 +230,10 @@ OPTIONS
 
 Again we use `eval` for clarity. Note that help text is generated for the "age" argument, but not
 for the "name" argument.
+
+#### --ordinal \<order>
+
+Provides that 
 
 #### --catch-all
 
@@ -396,58 +398,53 @@ OPTIONS
 
 ### Boolean Arguments (--boolean or --bool)
 
-Boolean arguments are significantly different than other argument types. By default boolean
-arguments have a value of "false", and specifying the argument is enough to change the value to
-"true". You can specify a value of "false" for this flag by using the `--flag=false` syntax. When
-using this syntax the only acceptable values are "true" and "false".
+Boolean arguments, like Choice arguments, have additional behavior.
 
-Boolean arguments support a very limited subset of the common argument parameters. The only
-supported parameters are:
+By default boolean arguments do not have a value. If the user does not specify the argument then
+the variable will not be set. If the user provides the flag with `--flag-name` then the value of
+the boolean argument will be "true". However, users can also explicitly specify the value by using
+`--flag-name=false`. The user input will only accept "true" and "false". You can utilize the
+`--default` flag to ensure that this is always set.
 
-- `--name`
+Boolean arguments can not be repeated, can not have any ordinals, and can not be a catch-all. If
+you attempt to define one with any of these characteristics you will get a definition error.
 
-- `--secret`
+##### Example:
 
-- `--desc[ription]`
+```
+$ argparse --boolean happy -- --happy
+HAPPY="true"
+```
 
-All other parameters are ignored.
+#### --negative-flag \<flag>
+
+Boolean arguments allow defining negative flags. These are flags that force the value to "false".
+Negation flags are explicitly defined.
 
 #### Example:
 
-```
-$ argparse \
-    --boolean is-happy \
-    --boolean is-sad \
-    -- \
-    --is-happy \
-    --is-sad=false
-IS_HAPPY="true"
-IS_SAD="false"
+```sh
+$ argparse --boolean happy --negative-flag "--not-happy" -- --not-happy
+HAPPY="false"
 ```
 
-#### Advanced Options
+This technique is particular useful when combined with either a `--default` paramater or a
+`--required` parameter:
 
-Because of the limitations on Boolean arguments, it's not uncommon to want slightly different
-functionality, or to use one of the common argument parameters that are not permitted on Boolean
-arguments (like `--default`). In this case we recommend creating a Choice argument that looks
-like a Boolean argument:
+```sh
+$ argparse --boolean happy --negative-flag "--sad" --required -- --sad
+HAPPY="false"
 
-```
-$ argparse \
-    --choice is-happy \
-        --default false \
-        --option true \
-        --option false \
-        --map yes true \
-        --map no false \
-    -- \
-    --is-happy true
-IS_HAPPY="true"
+$ argparse --boolean --name "HAPPY" --negative-flag "--sad" --default "true" --
+HAPPY="true"
 ```
 
-This gives you an argument that mostly looks like a boolean argument. The help text is a bit
-different, but you can make it required, provide defaults, make it repeated, and add additional
-mappings to "true" and "false".
+The first line requires that you include either `--happy` or `--sad`. If you don't include either
+you will get a user error. If you include both you will get an error due to having multiple values
+for "HAPPY".
+
+The second line defines "HAPPY" as a boolean that defaults to "true", but can be made "false" by
+including the `--sad` argument.
 
 ## Other Runtime Options
 

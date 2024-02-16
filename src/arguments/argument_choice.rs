@@ -114,7 +114,7 @@ impl Argument for ChoiceArgument {
   fn consume(&self, arg: Option<String>, other_args: &mut VecDeque<String>) -> Option<String> {
     let value = match self.common.check_flag_match(arg) {
       MatchResult::NoMatch => return None,
-      MatchResult::MatchWithValue(value) => value,
+      MatchResult::MatchWithValue(_flag, value) => value,
       MatchResult::MatchWithoutValue => other_args.pop_front()
             .unwrap_or_error(USER_ERROR, format!("No value provided for argument {}", self.get_name()))
     };

@@ -25,7 +25,7 @@ pub trait Argument {
       parser: fn(&String, &String) -> String) -> Option<String> {
     match self.get_common().check_flag_match(arg) {
       MatchResult::NoMatch => None,
-      MatchResult::MatchWithValue(value) => Some(parser(self.get_name(), &value)),
+      MatchResult::MatchWithValue(_flag, value) => Some(parser(self.get_name(), &value)),
       MatchResult::MatchWithoutValue => Some(parser(
           self.get_name(),
           &other_args.pop_front()

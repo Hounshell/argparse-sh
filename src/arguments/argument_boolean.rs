@@ -25,9 +25,11 @@ impl BooleanArgument {
           break;
         }
         Some("--negative-flag") | Some("--negative") | Some("--neg") => {
-          negative_flags.push(args.pop_front()
-                .unwrap_or_error(DEFINITION_ERROR, String::from("flag must be provided after --negative-flag"))
-                .to_string());
+          let flag = args.pop_front()
+                .unwrap_or_error(DEFINITION_ERROR, String::from("flag must be provided after --negative-flag"));
+
+          common.add_flag(flag.to_string());
+          negative_flags.push(flag.to_string());
         }
         Some(other) => {
           args.push_front(other.to_string());
@@ -87,9 +89,17 @@ impl Argument for BooleanArgument {
     match self.common.check_flag_match(arg.clone()) {
       MatchResult::NoMatch => {}
       MatchResult::MatchWithoutValue => {
-        return Some(String::from("true"));
+        if self.negative_flags.contains(&arg.unwrap()) {
+          return Some(String::from("false"));
+        } else {
+          return Some(String::from("true"));
+        }
       }
-      MatchResult::MatchWithValue(value) => {
+      MatchResult::MatchWithValue(flag, value) => {
+        if self.negative_flags.contains(&flag) {
+          error(USER_ERROR, format!("Boolean argument {} does not support '{flag}=<value>' syntax", self.get_name()));
+        }
+
         return Some(value
           .parse::<bool>()
           .unwrap_or_error(USER_ERROR, format!("Non-boolean value '{value}' provided for argument {}", self.get_name()))
