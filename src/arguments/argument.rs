@@ -5,6 +5,13 @@ use super::argument_common::MatchResult;
 use super::errors::OptionExt;
 use super::errors::USER_ERROR;
 
+
+pub enum HelpDetailSection {
+  Text(String),
+  ListItem(String),
+}
+
+
 pub trait Argument {
   /// Provides a terse representation of the argument, suitable for debugging.
   fn get_debug_info(&self) -> String;
@@ -33,8 +40,8 @@ pub trait Argument {
     }
   }
 
-  fn get_help_details(&self) -> Vec<String> {
-    vec![self.get_description().clone().unwrap_or(String::from("No details available."))]
+  fn get_help_details(&self) -> Vec<HelpDetailSection> {
+    vec![HelpDetailSection::Text(self.get_description().clone().unwrap_or(String::from("No details available.")))]
   }
 
   fn get_help_flags(&self) -> Vec<String> {

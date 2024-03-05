@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use super::argument::Argument;
+use super::argument::HelpDetailSection;
 use super::argument_common::ArgumentCommon;
 use super::argument_common::ArgumentCommonBuilder;
 use super::argument_common::MatchResult;
@@ -94,18 +95,18 @@ impl Argument for ChoiceArgument {
     return description;
   }
 
-  fn get_help_details(&self) -> Vec<String> {
+  fn get_help_details(&self) -> Vec<HelpDetailSection> {
     let mut lines = vec![
-        self.get_description().clone().unwrap_or(String::from("No details available.")),
-        String::from("The possible options are:"),
+        HelpDetailSection::Text(self.get_description().clone().unwrap_or(String::from("No details available."))),
+        HelpDetailSection::Text(String::from("The possible options are:")),
     ];
 
     for (option, info) in &self.all_options {
-      lines.push(format!("•   {} - {}", option,
+      lines.push(HelpDetailSection::ListItem(format!("{} - {}", option,
           match info {
             OptionType::Actual(description) => description.clone().unwrap_or(String::from("No details available.")),
             OptionType::Mapping(actual) => format!("Identical to '{actual}'"),
-          }));
+          })));
     }
 
     lines

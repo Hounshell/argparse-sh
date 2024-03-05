@@ -1,5 +1,11 @@
+extern crate termsize;
+
+use regex::Regex;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use textwrap::fill;
+use textwrap::Options;
+use unicode_width::UnicodeWidthStr;
 
 mod errors;
 mod argument;
@@ -22,6 +28,8 @@ struct Settings {
   program_summary: Option<String>,
   program_description: Option<String>,
   remaining_args: Vec<String>,
+  columns: usize,
+  help_function: Option<String>,
 }
 
 fn parse_settings(args: Vec<String>) -> Settings {
@@ -36,6 +44,12 @@ fn parse_settings(args: Vec<String>) -> Settings {
   let mut program_name = None;
   let mut program_summary = None;
   let mut program_description = None;
+  let mut help_function = None;
+
+  let mut columns = match termsize::get() {
+    None => 80_usize,
+    Some(size) => size.cols as usize,
+  };
 
   loop {
     match args.pop_front().as_deref() {
@@ -59,6 +73,18 @@ fn parse_settings(args: Vec<String>) -> Settings {
       }
       Some("--autohelp") | Some("--auto-help") => {
         auto_help = true;
+      }
+      Some("--help-function") => {
+        help_function = Some(args.pop_front()
+            .unwrap_or_error(DEFINITION_ERROR, String::from("help function name must be provided after --help-function"))
+            .to_string());
+      }
+      Some("--columns") | Some("--cols") => {
+        let value = args.pop_front()
+            .unwrap_or_error(DEFINITION_ERROR, String::from("number of columns must be provided after --columns or --cols"));
+        columns = value
+            .parse::<usize>()
+            .unwrap_or_error(DEFINITION_ERROR, format!("Non-numeric value '{value}' provided for number of columns"))
       }
       Some("--program-name") => {
         program_name = Some(args.pop_front()
@@ -92,16 +118,20 @@ fn parse_settings(args: Vec<String>) -> Settings {
     };
   }
 
+  println!("echo \"{:?}\"", termsize::get());
+
   Settings {
     arguments: arguments,
     prefix: prefix,
     auto_help: auto_help,
+    help_function: help_function,
     export: export,
     debug: debug,
     program_name: program_name,
     program_summary: program_summary,
     program_description: program_description,
     remaining_args: Vec::from(args),
+    columns: columns
   }
 }
 
@@ -118,6 +148,8 @@ fn debug_setup(settings: &Settings) {
   if settings.auto_help {
     output_debug(settings, "Help text will be printed if '--help' is found in arguments");
   }
+
+  output_debug(settings, format!("Help text will be formatted with {} columns", settings.columns));
 
   output_debug(settings, "");
 
@@ -231,7 +263,36 @@ fn output_argument_settings(settings: &Settings, arg_values: &HashMap<String, Ve
   output_debug(settings, "ArgParse completed successfully");
 }
 
+fn cleanup_help_text(text: &Option<String>, options: &Options) -> String {
+  let regex = Regex::new(r"(?m)(?P<text>.+?)\s*?(?P<lines>\n+|$)").unwrap();
+  let mut result = String::from("");
+
+  for chunk in regex.captures_iter(text.clone().unwrap().as_str()) {
+    result.push_str(&chunk["text"]);
+    let lines = &chunk["lines"];
+    if lines.len() == 1 {
+      result.push_str(" ");
+    } else {
+      result.push_str("\n\n");
+    }
+  }
+
+  return fill(result.trim_end(), options).to_string();
+}
+
 fn print_help_text(settings: &Settings) {
+  let shallow_options = Options::new(settings.columns)
+      .initial_indent("       ")
+      .subsequent_indent("       ");
+
+  let deep_options = Options::new(settings.columns)
+      .initial_indent("           ")
+      .subsequent_indent("           ");
+
+  let list_options = Options::new(settings.columns)
+      .initial_indent("           •   ")
+      .subsequent_indent("               ");
+
   println!("(");
 
   println!("if [ -t 1 ]; then");
@@ -247,21 +308,23 @@ fn print_help_text(settings: &Settings) {
 
   if settings.program_name.is_some() && settings.program_summary.is_some() {
     println!("${{bold}}NAME${{unbold}}");
-    println!("       {} - {}", settings.program_name.clone().unwrap(), settings.program_summary.clone().unwrap());
+    println!("{}", cleanup_help_text(
+        &Some(format!("{} - {}", settings.program_name.clone().unwrap(), settings.program_summary.clone().unwrap())),
+        &shallow_options));
     println!("");
   } else if settings.program_name.is_some() {
     println!("${{bold}}NAME${{unbold}}");
-    println!("       {}", settings.program_name.clone().unwrap());
+    println!("{}", cleanup_help_text(&settings.program_name, &shallow_options));
     println!("");
   } else if settings.program_summary.is_some() {
     println!("${{bold}}SUMMARY${{unbold}}");
-    println!("       {}", settings.program_summary.clone().unwrap());
+    println!("{}", cleanup_help_text(&settings.program_summary, &shallow_options));
     println!("");
   }
 
   if settings.program_description.is_some() {
     println!("${{bold}}DESCRIPTION${{unbold}}");
-    println!("       {}", settings.program_description.clone().unwrap());
+    println!("{}", cleanup_help_text(&settings.program_description, &shallow_options));
     println!("");
   }
 
@@ -270,15 +333,34 @@ fn print_help_text(settings: &Settings) {
 
     for arg in settings.arguments.iter() {
       if !arg.is_secret() {
-        println!("       {}", arg.get_help_flags().join(", "));
+        let mut line_so_far = String::from("");
+        for (i, flag) in arg.get_help_flags().iter().enumerate() {
+          if i == 0 {
+            line_so_far = format!("       {flag}");
+          } else if UnicodeWidthStr::width(line_so_far.as_str()) + UnicodeWidthStr::width(flag.as_str()) + 4 > settings.columns {
+            println!("{line_so_far}, ");
+            line_so_far = format!("       {flag}");
+          } else {
+            line_so_far.push_str(", ");
+            line_so_far.push_str(flag);
+          }
+        }
+        println!("{line_so_far}");
 
         for detail in arg.get_help_details() {
-          println!("           {detail}\n");
+          match detail {
+            argument::HelpDetailSection::Text(text) => {
+                println!("{}\n", cleanup_help_text(&Some(text), &deep_options));
+              },
+            argument::HelpDetailSection::ListItem(text) => {
+                println!("{}\n", cleanup_help_text(&Some(text), &list_options));
+              },
+          }
         }
 
         match arg.get_help_default() {
           None => {},
-          Some(text) => { println!("           {text}\n"); }
+          Some(text) => { println!("{}\n", cleanup_help_text(&Some(text), &deep_options)); }
         }
       }
     }
@@ -287,6 +369,14 @@ fn print_help_text(settings: &Settings) {
   println!("\"");
   println!("echo \"$HELP_TEXT\" | $HELP_PAGER");
   println!(")");
+}
+
+fn print_help_function(settings: &Settings) {
+  println!("{} () {{", settings.help_function.clone().unwrap());
+
+  print_help_text(settings);
+
+  println!("}}");
 }
 
 fn echo<S: AsRef<str>>(text: S) {
@@ -324,6 +414,10 @@ pub fn handle_all_arguments(args: Vec<String>) {
 
     validate_argument_values(&settings, &values);
     output_argument_settings(&settings, &values);
+
+    if settings.help_function.is_some() {
+      print_help_function(&settings);
+    }
   }
 }
 

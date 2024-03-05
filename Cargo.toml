@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 regex = "1.10.3"
+termsize = "0.1.6"
+textwrap = "0.16.1"
+unicode-width = "0.1.11"
+

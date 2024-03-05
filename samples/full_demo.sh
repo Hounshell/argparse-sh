@@ -40,6 +40,8 @@ eval "$(target/debug/argparse \
       --default none \
   --boolean basic-data one-line single-line \
       --description "Include this argument if you only want to see the first line in the output." \
+  --boolean print-help-text \
+      --description "Include this argument to print out the help text at the end." \
   --string quote \
       --name QUOTES \
       --description "Include one or more quotes that you find inspirational." \
@@ -47,7 +49,9 @@ eval "$(target/debug/argparse \
       --required \
       --catch-all \
   --auto-help \
+  --help-function "print_help" \
   --prefix "DEMO_" \
+  --columns "$(tput cols)" \
   --program-name "$(basename "$0")" \
   --program-summary "Sample script that uses argparse to parse command line arguments." \
   --program-description "$PROGRAM_DESCRIPTION" \
@@ -92,4 +96,7 @@ for (( i=0; i<$DEMO_QUOTES; i++ )); do
   echo "  ${!QUOTE}";
 done
 
+if [ "$DEMO_PRINT_HELP_TEXT" = "true" ]; then
+  print_help
+fi
 
