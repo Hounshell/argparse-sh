@@ -118,8 +118,6 @@ fn parse_settings(args: Vec<String>) -> Settings {
     };
   }
 
-  println!("echo \"{:?}\"", termsize::get());
-
   Settings {
     arguments: arguments,
     prefix: prefix,
