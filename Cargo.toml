@@ -7,7 +7,7 @@ description = "Structured argument parsing for shell scripts"
 readme = "README.md"
 homepage = "https://github.com/Hounshell/argparse-sh"
 repository = "https://github.com/Hounshell/argparse-sh"
-keywords = ["cli", "arguments", "argparse", "shell", "script", "scripting"]
+keywords = ["cli", "arguments", "argparse", "shell", "script"]
 categories = ["command-line-interface", "command-line-utilities"]
 
 [dependencies]
