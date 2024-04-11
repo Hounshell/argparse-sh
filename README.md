@@ -2,6 +2,34 @@
 
 Utility for parsing arguments to shell scripts and providing the results as environment variables.
 
+# Installation
+
+## Cargo Install
+
+The preferred method of install uses `cargo`, the Rust tool. If you have Rust installed on your
+local machine, run:
+
+```sh
+cargo install argparse
+```
+
+The binary will be built and put in your `~/.cargo/bin/` folder. Add that to your `PATH` or
+reference it directly, and you are all set.
+
+## Building From Source
+
+You can download and build the application from source code. This also requires Rust to be
+installed on your local machine, as well as Git. To do this, run:
+
+```sh
+git clone git@github.com:Hounshell/argparse.git
+cd argparse
+cargo build --release
+```
+
+The compiled binary will be in `target/release/argparse`. Put this wherever you like and add it
+to your `PATH` or reference it directly.
+
 # Usage
 
 ArgParse takes two sets of arguments. The first set defines all of the arguments that will be

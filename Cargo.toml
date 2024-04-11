@@ -2,8 +2,13 @@
 name = "argparse"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = "Structured argument parsing for shell scripts"
+readme = "README.md"
+homepage = "https://github.com/Hounshell/argparse"
+repository = "https://github.com/Hounshell/argparse"
+keywords = ["cli", "arguments", "argparse"]
+categories = ["command-line-interface", "command-line-utilities"]
 
 [dependencies]
 regex = "1.10.3"
