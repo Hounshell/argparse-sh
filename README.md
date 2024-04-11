@@ -259,10 +259,6 @@ OPTIONS
 Again we use `eval` for clarity. Note that help text is generated for the "age" argument, but not
 for the "name" argument.
 
-#### --ordinal \<order>
-
-Provides that 
-
 #### --catch-all
 
 This is used to mark an argument that will be get any unrecognized values. This is particularly
@@ -277,6 +273,26 @@ then the argument **must** have a name.
 ```sh
 $ argparse-sh --string name --catch-all -- "Bob"
 NAME="Bob"
+```
+#### --ordinal \<order>
+
+Makes this argument act like a catch-all argument, except it will only take a single value, and
+only if a value hasn't been explicitly provided. The `order` is an integer that provides the order
+that ordinal arguments are filled. The lowest argument that does not already have a value (e.g. the
+user hasn't explicitly provided a value for this argument via a flag) will be used next. This means
+that ordinals can start at whatever number you like, and can have gaps between the numbers.
+
+##### Example:
+
+```sh
+$ argparse-sh \
+    --string first_name --ordinal 1 --required \
+    --string middle_name --ordinal 2 --required \
+    --string last_name --ordinal 3 --required \
+    -- --middle_name "Quincy" "Alice" "Smith"
+FIRST_NAME="Alice"
+MIDDLE_NAME="Qunicy"
+LAST_NAME="Smith"
 ```
 
 ### String Arguments (--string or --str)
@@ -550,7 +566,8 @@ $ eval "$(argparse-sh \
   omitted argument that is marked as required, or multiple values for arguments that are not
   repeated are examples of this.
 
-If you run `set -e`
+If you run `set -e` before calling argparse-sh, your script will automatically exit if ArgParse-sh
+returns an exit code other than 0. You can also trap this error to recover more gracefully.
 
 ## Putting it all together.
 

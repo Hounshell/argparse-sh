@@ -199,11 +199,16 @@ fn parse_argument_value(
   }
 
   // Second pass handles ordinals.
-  for argument in settings.arguments.iter() {
-    if argument.is_ordinal(ordinal) {
+  let next_ordinal_argument = settings.arguments.iter()
+      .filter(|a| a.get_ordinal().is_some() && !known_values.contains_key(a.get_name()))
+      .min_by_key(|a| a.get_ordinal().clone().unwrap());
+
+  match next_ordinal_argument {
+    None => {}
+    Some(argument) => {
       let name = argument.get_name().to_string();
       let value = argument.consume(None, &mut VecDeque::from(vec![first.clone()])).unwrap();
-      output_debug(settings, format!("Parsed argument {name} = '{value}' [ordinal: {ordinal}]"));
+      output_debug(settings, format!("Parsed argument {name} = '{value}' [ordinal: {}]", argument.get_ordinal().clone().unwrap()));
       return (name, value, ordinal + 1);
     }
   }

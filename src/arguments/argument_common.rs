@@ -13,7 +13,7 @@ struct ArgumentCommonBuilderData {
   required: bool,
   secret: bool,
   repeated: bool,
-  ordinals: Vec<u16>,
+  ordinal: Option<u16>,
   catch_all: bool,
 }
 
@@ -33,7 +33,7 @@ impl ArgumentCommonBuilder for ArgumentCommonBuilderData {
         Some("--repeated") | Some("--repeat") => { self.repeated = true; },
         Some("--catch-all") => { self.catch_all = true; },
         Some("--ordinal") | Some("--order") | Some("--ord") => {
-            self.ordinals.push(args.pop_front() 
+            self.ordinal = Some(args.pop_front() 
               .unwrap_or_error(DEFINITION_ERROR, String::from("ordinal position must be provided after --ordinal or --order or --ord"))
               .to_string()
               .parse::<u16>()
@@ -83,7 +83,7 @@ impl ArgumentCommonBuilder for ArgumentCommonBuilderData {
     }
     let name = name.unwrap();
 
-    if self.all_flags.is_empty() && !self.catch_all && self.ordinals.is_empty() {
+    if self.all_flags.is_empty() && !self.catch_all && self.ordinal.is_none() {
       error(DEFINITION_ERROR, format!("{name} argument can not be set - no flags, no ordinal, and not a catch-all argument"))
     }
 
@@ -95,7 +95,7 @@ impl ArgumentCommonBuilder for ArgumentCommonBuilderData {
       required: self.required,
       secret: self.secret,
       repeated: self.repeated,
-      ordinals: self.ordinals,
+      ordinal: self.ordinal,
       catch_all: self.catch_all,
     }
   }
@@ -109,7 +109,7 @@ pub struct ArgumentCommon {
   required: bool,
   secret: bool,
   repeated: bool,
-  ordinals: Vec<u16>,
+  ordinal: Option<u16>,
   catch_all: bool,
 }
 
@@ -121,7 +121,7 @@ impl ArgumentCommon {
   pub fn get_required(&self) -> bool { self.required }
   pub fn get_secret(&self) -> bool { self.secret }
   pub fn get_repeated(&self) -> bool { self.repeated }
-  pub fn get_ordinals(&self) -> &Vec<u16> { &self.ordinals }
+  pub fn get_ordinal(&self) -> &Option<u16> { &self.ordinal }
   pub fn get_catch_all(&self) -> bool { self.catch_all }
 
   pub fn new_builder() -> impl ArgumentCommonBuilder {
@@ -133,7 +133,7 @@ impl ArgumentCommon {
       required: false,
       secret: false,
       repeated: false,
-      ordinals: Vec::new(),
+      ordinal: None,
       catch_all: false,
     }
   }

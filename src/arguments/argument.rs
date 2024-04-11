@@ -86,8 +86,8 @@ pub trait Argument {
     self.get_common().get_required()
   }
 
-  fn is_ordinal(&self, ordinal: u16) -> bool {
-    self.get_common().get_ordinals().contains(&ordinal)
+  fn get_ordinal(&self) -> &Option<u16> {
+    self.get_common().get_ordinal()
   }
 
   fn is_catch_all(&self) -> bool {

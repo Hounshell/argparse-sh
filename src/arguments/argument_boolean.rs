@@ -46,7 +46,7 @@ impl BooleanArgument {
     } else if common.get_catch_all() {
       error(DEFINITION_ERROR, format!("Boolean argument {} can not be catch-all", common.get_name()));
 
-    } else if !common.get_ordinals().is_empty() {
+    } else if common.get_ordinal().is_some() {
       error(DEFINITION_ERROR, format!("Boolean argument {} can not be ordinal", common.get_name()));
     }
 
