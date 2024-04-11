@@ -1,13 +1,13 @@
 [package]
-name = "argparse"
+name = "argparse-sh"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Structured argument parsing for shell scripts"
 readme = "README.md"
-homepage = "https://github.com/Hounshell/argparse"
-repository = "https://github.com/Hounshell/argparse"
-keywords = ["cli", "arguments", "argparse"]
+homepage = "https://github.com/Hounshell/argparse-sh"
+repository = "https://github.com/Hounshell/argparse-sh"
+keywords = ["cli", "arguments", "argparse", "shell", "script", "scripting"]
 categories = ["command-line-interface", "command-line-utilities"]
 
 [dependencies]

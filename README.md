@@ -1,4 +1,4 @@
-# ArgParse
+# ArgParse-sh
 
 Utility for parsing arguments to shell scripts and providing the results as environment variables.
 
@@ -10,7 +10,7 @@ The preferred method of install uses `cargo`, the Rust tool. If you have Rust in
 local machine, run:
 
 ```sh
-cargo install argparse
+cargo install argparse-sh
 ```
 
 The binary will be built and put in your `~/.cargo/bin/` folder. Add that to your `PATH` or
@@ -22,22 +22,22 @@ You can download and build the application from source code. This also requires 
 installed on your local machine, as well as Git. To do this, run:
 
 ```sh
-git clone git@github.com:Hounshell/argparse.git
-cd argparse
+git clone git@github.com:Hounshell/argparse-sh.git
+cd argparse-sh
 cargo build --release
 ```
 
-The compiled binary will be in `target/release/argparse`. Put this wherever you like and add it
+The compiled binary will be in `target/release/argparse-sh`. Put this wherever you like and add it
 to your `PATH` or reference it directly.
 
 # Usage
 
-ArgParse takes two sets of arguments. The first set defines all of the arguments that will be
+ArgParse-sh takes two sets of arguments. The first set defines all of the arguments that will be
 parsed. The second set is the arguments to parse. This is probably best clarified via a minimal
 demonstration:
 
 ```sh
-$ argparse --string text -- --text "Hello, world!"
+$ argparse-sh --string text -- --text "Hello, world!"
 TEXT="Hello, world!"
 ```
 
@@ -46,32 +46,32 @@ parsed a set of argument values. The output is a script that sets environment va
 arguments provided.
 
 This is a minimal example, but it isn't a very useful one. Instead lets drop this into a script
-and pass arguments on the script through to ArgParse:
+and pass arguments on the script through to ArgParse-sh:
 
 **demo.sh**
 
 ```sh
-eval "$(argparse --string text -- "$@")";
+eval "$(argparse-sh --string text -- "$@")";
 echo "$TEXT"
 ```
 
 Let's break this script up into various pieces:
 
-- `argparse` - This invokes the ArgParse program
+- `argparse-sh` - This invokes the ArgParse-sh program
 
-- `--string text` - This indicates to ArgParse that we can accept an optional argument called
+- `--string text` - This indicates to ArgParse-sh that we can accept an optional argument called
   "text". The value is a string and there is no default value.
 
-- `--` - This indicates to ArgParse that we are done defining arguments. All remaining command line
+- `--` - This indicates to ArgParse-sh that we are done defining arguments. All remaining command line
   parameters should be treated as argument values.
 
-- `"$@"` - This forwards all of the parameters that the script was called with to ArgParse. Because
-  this is after the `--`, ArgParse will interpret these parameters.
+- `"$@"` - This forwards all of the parameters that the script was called with to ArgParse-sh. Because
+  this is after the `--`, ArgParse-sh will interpret these parameters.
 
-- `eval "$(...)";` - The output of ArgParse is script commands. `eval` executes these commands in
+- `eval "$(...)";` - The output of ArgParse-sh is script commands. `eval` executes these commands in
   the current shell.
 
-- `echo "$TEXT"` - The script commands that ArgParse will output set environment variables with the
+- `echo "$TEXT"` - The script commands that ArgParse-sh will output set environment variables with the
   value of the arguments. This will print the value of whatever was passed in for the "text"
   argument.
 
@@ -82,12 +82,12 @@ $ ./demo.sh --text "Hello, world!"
 Hello, world!
 ```
 
-ArgParse recognizes the `--text` argument and expects a string. That string ("Hello, world!") is
+ArgParse-sh recognizes the `--text` argument and expects a string. That string ("Hello, world!") is
 written to an environment variable called "TEXT" (based on the argument's name), which can then be
 used by the remainder of the script.
 
-In several examples below we will omit the `eval` part of the argparse command. This will cause the
-ArgParse output to dump to the screen, allowing us to see what is happening more clearly.
+In several examples below we will omit the `eval` part of the argparse-sh command. This will cause the
+ArgParse-sh output to dump to the screen, allowing us to see what is happening more clearly.
 
 ## Argument Types
 
@@ -117,7 +117,7 @@ The types available are:
 ##### Example:
 
 ```sh
-$ argparse --string given-name first-name name -- --first-name "Alice"
+$ argparse-sh --string given-name first-name name -- --first-name "Alice"
 GIVEN_NAME="Alice"
 ```
 
@@ -125,7 +125,7 @@ This creates a single string argument called "GIVEN\_NAME" that can be set using
 `--given-name`, `--first-name`, or `--name`. This is the shorthand form of:
 
 ```sh
-$ argparse --string --name GIVEN_NAME \
+$ argparse-sh --string --name GIVEN_NAME \
     --flag "--given-name" \
     --flag "--first-name" \
     --flag "--name" \
@@ -146,7 +146,7 @@ name would be "FIRST\_NAME".
 ##### Example:
 
 ```sh
-$ argparse --string name --name FIRST_NAME -- --name "Alice"
+$ argparse-sh --string name --name FIRST_NAME -- --name "Alice"
 FIRST_NAME="Alice"
 ```
 
@@ -162,7 +162,7 @@ specify a flag name without a hyphen at all.
 ##### Example:
 
 ```sh
-$ argparse --string name --flag "--first-name" --flag "-n" -- -n Alice
+$ argparse-sh --string name --flag "--first-name" --flag "-n" -- -n Alice
 NAME="Alice"
 ```
 
@@ -179,7 +179,7 @@ through.
 ##### Example:
 
 ```sh
-$ argparse --string name --default "Alice"
+$ argparse-sh --string name --default "Alice"
 NAME="Alice"
 ```
 
@@ -192,7 +192,7 @@ Provide a description to use for this argument when generating help text.
 ##### Example:
 
 ```sh
-$ eval "$(argparse --string name --desc "The user's first name." --autohelp -- --help)"
+$ eval "$(argparse-sh --string name --desc "The user's first name." --autohelp -- --help)"
 
 OPTIONS
        --name <name>
@@ -213,7 +213,7 @@ environment variable, with a 0-based suffix for the index.
 ##### Example:
 
 ```sh
-$ argparse --string name --repeated -- --name "Alice" --name "Bob" --name "Carol"
+$ argparse-sh --string name --repeated -- --name "Alice" --name "Bob" --name "Carol"
 NAME="3"
 NAME_0="Alice"
 NAME_1="Bob"
@@ -224,14 +224,14 @@ Here we can see that three names were supplied. Each value for `--name` was incl
 
 #### --required
 
-Indicates that this argument is required. If not provided ArgParse will fail.
+Indicates that this argument is required. If not provided ArgParse-sh will fail.
 
 ##### Example:
 
 ```sh
-$ argparse --string name --required
+$ argparse-sh --string name --required
 echo ""
-echo "!!! ArgParse Error: Value for argument NAME is missing !!!"
+echo "!!! ArgParse-sh Error: Value for argument NAME is missing !!!"
 echo ""
 
 $ echo $?
@@ -239,7 +239,7 @@ $ echo $?
 ```
 
 An error message is shown indicating that the "name" argument wasn't supplied. The exit code from
-ArgParse when there is an error parsing the arguments is 2.
+ArgParse-sh when there is an error parsing the arguments is 2.
 
 #### --secret
 
@@ -248,7 +248,7 @@ Marks an argument for non-inclusion in generated help text.
 ##### Example:
 
 ```sh
-$ eval "$(target/debug/argparse --string name --secret --string age --autohelp -- --help)"
+$ eval "$(target/debug/argparse-sh --string name --secret --string age --autohelp -- --help)"
 
 OPTIONS
        --age <age>
@@ -275,7 +275,7 @@ then the argument **must** have a name.
 ##### Example:
 
 ```sh
-$ argparse --string name --catch-all -- "Bob"
+$ argparse-sh --string name --catch-all -- "Bob"
 NAME="Bob"
 ```
 
@@ -288,7 +288,7 @@ parameters.
 #### Example:
 
 ```
-$ argparse \
+$ argparse-sh \
     --string first-name --required \
     --string last-name --default "Doe" \
     --string nickname --repeated --catch-all \
@@ -306,7 +306,7 @@ NICKNAME_1="Tight Lips"
 ### Integer Arguments (--integer or --int)
 
 Integer arguments are validated. The value provided must be parseable as a 64 bit signed integer.
-If an invalid argument is provided then argparse will fail with a message and an error code of 2.
+If an invalid argument is provided then argparse-sh will fail with a message and an error code of 2.
 Integer arguments support all of the common argument parameters.
 
 **Important:** If a default value is provided it is not validated. You are responsible for ensuring
@@ -315,7 +315,7 @@ that the provided value resolves to an integer, or your script is able to handle
 #### Example:
 
 ```
-$ argparse \
+$ argparse-sh \
     --integer age --required \
     --integer children --default 0 \
     --integer pockets --required --catch-all \
@@ -330,7 +330,7 @@ POCKETS="7"
 ### Float Arguments (--float or --number)
 
 Float arguments are also validated. The value provided must be parseable as a 64 bit floating point
-number. If an invalid argument is provided then argparse will fail with a message and an error code
+number. If an invalid argument is provided then argparse-sh will fail with a message and an error code
 of 2. Float arguments support all of the common argument parameters.
 
 **Important:** If a default value is provided it is not validated. You are responsible for ensuring
@@ -339,7 +339,7 @@ that the provided value resolves to a number, or your script is able to handle n
 #### Example:
 
 ```
-$ argparse \
+$ argparse-sh \
     --float height --required \
     --float weight --default 0 \
     --float cash-on-hand --catch-all \
@@ -355,7 +355,7 @@ CASH_ON_HAND="72.34"
 
 Choice arguments are a little different than other argument types, but they are most similar to
 String arguments. With Choice arguments you supply a list of valid choices and alternate mappings.
-If an unrecognized value is provided then argparse will fail with a message and an error code of 2.
+If an unrecognized value is provided then argparse-sh will fail with a message and an error code of 2.
 
 **Important:** If a default value is provided it is not validated and it is not mapped. You are
 responsible for ensuring that the provided value resolves to one of your choices, or your script
@@ -378,7 +378,7 @@ the option that you map to exists. Mappings are not chained; if you map from "a"
 #### Example:
 
 ```
-$ argparse \
+$ argparse-sh \
     --choice gender --default "none" \
         --option male "Person identifies as male" \
         --option female "Person identifies as female" \
@@ -390,7 +390,7 @@ $ argparse \
     --gender boy
 GENDER="male"
 
-$ eval "$(argparse \
+$ eval "$(argparse-sh \
     --choice gender --default "none" \
         --option male "Person identifies as male" \
         --option female "Person identifies as female" \
@@ -440,7 +440,7 @@ you attempt to define one with any of these characteristics you will get a defin
 ##### Example:
 
 ```
-$ argparse --boolean happy -- --happy
+$ argparse-sh --boolean happy -- --happy
 HAPPY="true"
 ```
 
@@ -452,7 +452,7 @@ Negation flags are explicitly defined.
 #### Example:
 
 ```sh
-$ argparse --boolean happy --negative-flag "--not-happy" -- --not-happy
+$ argparse-sh --boolean happy --negative-flag "--not-happy" -- --not-happy
 HAPPY="false"
 ```
 
@@ -460,10 +460,10 @@ This technique is particular useful when combined with either a `--default` para
 `--required` parameter:
 
 ```sh
-$ argparse --boolean happy --negative-flag "--sad" --required -- --sad
+$ argparse-sh --boolean happy --negative-flag "--sad" --required -- --sad
 HAPPY="false"
 
-$ argparse --boolean --name "HAPPY" --negative-flag "--sad" --default "true" --
+$ argparse-sh --boolean --name "HAPPY" --negative-flag "--sad" --default "true" --
 HAPPY="true"
 ```
 
@@ -476,10 +476,10 @@ including the `--sad` argument.
 
 ## Other Runtime Options
 
-There are a handful of other options that can be used when running argparse. These can be included
+There are a handful of other options that can be used when running argparse-sh. These can be included
 anywhere in the list of arguments, but it is recommended that you put these at the beginning or end
 of the arguments. They can not be placed inside an argument definition (e.g. 
-`argparse --bool --debug --name bad-example` is ***not*** allowed).
+`argparse-sh --bool --debug --name bad-example` is ***not*** allowed).
 
 ### --debug
 
@@ -489,7 +489,7 @@ is not behaving the way you expected.
 #### Example:
 
 ```
-$ eval "$(argparse \
+$ eval "$(argparse-sh \
     --choice gender --default "none" \
         --option male "Person identifies as male" \
         --option female "Person identifies as female" \
@@ -500,18 +500,18 @@ $ eval "$(argparse \
     --debug \
     -- \
     --gender boy)"
-[ArgParse] ArgParse debugging enabled with --debug flag
-[ArgParse] Arguments are not exported to child processes
-[ArgParse] 
-[ArgParse] Definition - type: Choice; name: GENDER; flags: gender; default: none; options: male, female, boy -> male, girl -> female, other, none
-[ArgParse] 
-[ArgParse] Parsing argument values
-[ArgParse] 
-[ArgParse] Parsed argument GENDER = 'male'
-[ArgParse] 
-[ArgParse] Setting GENDER = "male"
-[ArgParse] 
-[ArgParse] ArgParse completed successfully
+[ArgParse-sh] ArgParse-sh debugging enabled with --debug flag
+[ArgParse-sh] Arguments are not exported to child processes
+[ArgParse-sh] 
+[ArgParse-sh] Definition - type: Choice; name: GENDER; flags: gender; default: none; options: male, female, boy -> male, girl -> female, other, none
+[ArgParse-sh] 
+[ArgParse-sh] Parsing argument values
+[ArgParse-sh] 
+[ArgParse-sh] Parsed argument GENDER = 'male'
+[ArgParse-sh] 
+[ArgParse-sh] Setting GENDER = "male"
+[ArgParse-sh] 
+[ArgParse-sh] ArgParse-sh completed successfully
 ```
 
 ### --auto-help
@@ -530,14 +530,14 @@ $ eval "$(argparse \
 
 - 0 - Success
 
-  When ArgParse completes successfully the exit code will be 0. If this happens you can be sure
+  When ArgParse-sh completes successfully the exit code will be 0. If this happens you can be sure
   that all required arguments have been set, all provided arguments have been parsed, and all type
   checks completed successfully.
 
 - 1 - Help
 
   If the `--autohelp` flag was used and the user passed in `--help` then help text will be written
-  to screen (using the user's PAGER if set) and ArgParse will exit with a code of 1.
+  to screen (using the user's PAGER if set) and ArgParse-sh will exit with a code of 1.
 
 - 2 - Definition Error
 
@@ -563,14 +563,14 @@ This is an example of a script using a wide variety of functionality along with 
 set -e;
 
 # The description is long, so we pulled it out into a variable for clarity.
-PROGRAM_DESCRIPTION="This demo program provides a number of examples of how to use ArgParse.
+PROGRAM_DESCRIPTION="This demo program provides a number of examples of how to use ArgParse-sh.
 You can provide a number of arguments that are parsed and sent back to the wrapper script as
 environment variables.
 
 Feel free to save this script and run it with a variety of parameters to test things out.";
 
-# Run ArgParse with argument definitions and pass command line through.
-eval "$(argparse \
+# Run ArgParse-sh with argument definitions and pass command line through.
+eval "$(argparse-sh \
   --string given-name first-name \
       --description "Name given to you. In western cultures this is usually your first name." \
       --required \
@@ -607,7 +607,7 @@ eval "$(argparse \
   --auto-help \
   --prefix "DEMO_" \
   --program-name "$(basename "$0")" \
-  --program-summary "Sample script that uses argparse to parse command line arguments." \
+  --program-summary "Sample script that uses argparse-sh to parse command line arguments." \
   --program-description "$PROGRAM_DESCRIPTION" \
   -- "$@")";
 

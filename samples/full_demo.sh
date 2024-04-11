@@ -2,14 +2,14 @@
 set -e;
 
 # The description is long, so we pulled it out into a variable for clarity.
-PROGRAM_DESCRIPTION="This demo program provides a number of examples of how to use ArgParse.
+PROGRAM_DESCRIPTION="This demo program provides a number of examples of how to use ArgParse-sh.
 You can provide a number of arguments that are parsed and sent back to the wrapper script as
 environment variables.
 
 Feel free to save this script and run it with a variety of parameters to test things out.";
 
-# Run ArgParse with argument definitions and pass command line through.
-eval "$(target/debug/argparse \
+# Run ArgParse-sh with argument definitions and pass command line through.
+eval "$(target/debug/argparse-sh \
   --string given-name first-name \
       --description "Name given to you. In western cultures this is usually your first name." \
       --ordinal 0 \
@@ -53,7 +53,7 @@ eval "$(target/debug/argparse \
   --prefix "DEMO_" \
   --columns "$(tput cols)" \
   --program-name "$(basename "$0")" \
-  --program-summary "Sample script that uses argparse to parse command line arguments." \
+  --program-summary "Sample script that uses argparse-sh to parse command line arguments." \
   --program-description "$PROGRAM_DESCRIPTION" \
   --debug \
   -- "$@")";

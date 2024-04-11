@@ -134,7 +134,7 @@ fn parse_settings(args: Vec<String>) -> Settings {
 }
 
 fn debug_setup(settings: &Settings) {
-  output_debug(settings, "ArgParse debugging enabled with --debug flag");
+  output_debug(settings, "ArgParse-sh debugging enabled with --debug flag");
   output_debug(settings, format!(
       "Arguments {} exported to child processes",
       if settings.export { "are" } else { "are not" }));
@@ -258,7 +258,7 @@ fn output_argument_settings(settings: &Settings, arg_values: &HashMap<String, Ve
   }
 
   output_debug(settings, "");
-  output_debug(settings, "ArgParse completed successfully");
+  output_debug(settings, "ArgParse-sh completed successfully");
 }
 
 fn cleanup_help_text(text: &Option<String>, options: &Options) -> String {
@@ -383,7 +383,7 @@ fn echo<S: AsRef<str>>(text: S) {
 
 fn output_debug<S: AsRef<str>>(settings: &Settings, text: S) {
   if settings.debug {
-    echo(format!("[ArgParse] {}", text.as_ref()));
+    echo(format!("[ArgParse-sh] {}", text.as_ref()));
   }
 }
 

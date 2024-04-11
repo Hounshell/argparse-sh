@@ -4,7 +4,7 @@ pub const USER_ERROR: i32 = 3;
 
 pub fn error<S: AsRef<str>>(exit_code: i32, message: S) {
   println!("echo \"\"");
-  println!("echo \"!!! ArgParse Error: {} !!!\"", message.as_ref());
+  println!("echo \"!!! ArgParse-sh Error: {} !!!\"", message.as_ref());
   println!("echo \"\"");
   println!("( exit {exit_code} )");
   std::process::exit(exit_code);
