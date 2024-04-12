@@ -248,7 +248,7 @@ Marks an argument for non-inclusion in generated help text.
 ##### Example:
 
 ```sh
-$ eval "$(target/debug/argparse-sh --string name --secret --string age --autohelp -- --help)"
+$ eval "$(argparse-sh --string name --secret --string age --autohelp -- --help)"
 
 OPTIONS
        --age <age>
@@ -264,6 +264,11 @@ for the "name" argument.
 This is used to mark an argument that will be get any unrecognized values. This is particularly
 useful for repeated arguments where you don't want to require the user to specify the flag name.
 
+Catch-all arguments do not need to be repeated, and multiple arguments can be marked as catch-all.
+If an argument is not repeated it can only catch a single value. If a second unrecognized value is
+provided, it will be consumed by the next catch-all argument that is repeated or does not already
+have a value assigned to it.
+
 Note that catch-all arguments don't ***require*** any flags, but it is advised that you still
 provide some to the user so that they can use the `--flag=value` syntax. If not using any flags
 then the argument **must** have a name.
@@ -274,6 +279,7 @@ then the argument **must** have a name.
 $ argparse-sh --string name --catch-all -- "Bob"
 NAME="Bob"
 ```
+
 #### --ordinal \<order>
 
 Makes this argument act like a catch-all argument, except it will only take a single value, and
@@ -530,17 +536,135 @@ $ eval "$(argparse-sh \
 [ArgParse-sh] ArgParse-sh completed successfully
 ```
 
-### --auto-help
+### --prefix \<arg\_prefix>
+
+Provides a prefix that is put before all parameter names. This is a good way to effectively
+namespace the environment variables that get created so you don't overwrite common names.
+
+#### Example:
+
+```
+$ argparse-sh \
+    --string first_name --catch-all \
+    --string last_name --catch-all \
+    --prefix "DEMO_" \
+    -- Alice Smith
+DEMO_FIRST_NAME="Alice"
+DEMO_LAST_NAME="Smith"
+```
 
 ### --export
 
-### --prefix \<arg\_prefix>
+TODO: This might be changing to `--format <format>`.
 
-### --program-name \<name>
+### Help Options
 
-### --program-summary \<summary>
+ArgParse-sh can auto-generate help text for your command and all of its options. There are a number
+of parameters you can supply to aid or direct this process.
 
-### --program-description \<description>
+#### --auto-help
+
+Indicates that ArgParse-sh should print out the generated help text if the first user argument is
+`--help`. This is the simplest way of providing help text for your users.
+
+Text is displayed using the user's `PAGER` variable. If `PAGER` is unset or blank then `less -R` is
+used.
+
+##### Example:
+
+```sh
+$ eval "$(argparse-sh \
+    --string first_name --required \
+    --string last_name \
+    --auto-help \
+    -- \
+    --help)"
+
+OPTIONS
+       --first_name <first_name>
+           No details available.
+
+       --last_name <last_name>
+           No details available.
+```
+
+#### --help-function \<name>
+
+This directs the script to create a function with the given name that will print out the help text.
+This function will not automatically be called, you may call it yourself.
+
+This is useful if you want to put some conditions on your arguments that the program can't validate.
+Maybe you expect a string parameter to be at least 4 letters long, and if it isn't you want to
+display the help text.
+
+##### Example:
+
+```sh
+$ eval "$(argparse-sh \
+    --string first_name --required \
+    --string last_name \
+    --help-function help_me \
+    -- )"
+
+$ help_me
+
+OPTIONS
+       --first_name <first_name>
+           No details available.
+
+       --last_name <last_name>
+           No details available.
+```
+
+#### --columns \<cols>
+
+Provides the width of the user's screen. This usually can't be determined automatically because
+ArgParse-sh is wrapped in the `eval` command. The most common way to provide this is by specifying
+`--columns "$(tput cols)"` to read it from the current environment. If this is not provided and
+argparse-sh can't determine how many columns the screen has, 80 will be used.
+
+ArgParse-sh will attempt to wrap text at word boundaries, but may not be perfect, especially with
+very long words or very low numbers of columns.
+
+##### Example:
+
+```sh
+$ eval "$(argparse-sh \
+    --program-description "This is a really neat program I wrote." \
+    --auto-help \
+    --columns 25 \
+    -- --help )"
+
+DESCRIPTION
+       This is a really
+       neat program I
+       wrote.
+```
+
+#### --program-name \<name>, --program-summary \<summary>, --program-description \<description>
+
+These parameters are all optional, and can provide extra text that shows up in the generated help
+text.
+
+For `--program-name` you can use `--program-name "$(basename "$0")"` to automatically get the name
+of the script that is executing.
+
+##### Example:
+
+```sh
+$ eval "$(argparse-sh \
+    --program-name "argparse-sh-demo" \
+    --program-summary "Demos of argparse-sh features" \
+    --program-description "These are a bunch of demos for how argparse-sh works." \
+    --auto-help \
+    -- --help )"
+
+NAME
+       argparse-sh-demo - Demos of argparse-sh features
+
+DESCRIPTION
+       These are a bunch of demos for how argparse-sh works.
+```
 
 ## Exit Codes
 
