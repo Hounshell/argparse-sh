@@ -280,7 +280,10 @@ fn cleanup_help_text(text: &Option<String>, options: &Options) -> String {
     }
   }
 
-  return fill(result.trim_end(), options).to_string();
+  return fill(result.trim_end(), options)
+      .to_string()
+      .replace("\"", "\\\"")
+      .replace("$", "\\$");
 }
 
 fn print_help_text(settings: &Settings) {
